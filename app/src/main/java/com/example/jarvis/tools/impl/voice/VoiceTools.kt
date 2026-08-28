@@ -23,7 +23,7 @@ class SpeakTool(private val ttsHelper: TextToSpeechHelper? = null) : Tool {
     override suspend fun execute(context: Context, params: Map<String, String>): ToolResult {
         val text = params["text"] ?: return ToolResult.failed(id, "Səsləndiriləcək mətn göstərilməyib.")
         return try {
-            ttsHelper?.speak(text)
+            ttsHelper?.speak(text, force = true)
             ToolResult.success(id, "Səsləndirildi: $text", mapOf("spokenText" to text))
         } catch (e: Exception) {
             ToolResult.failed(id, "Səsləndirmə xətası: ${e.message}")

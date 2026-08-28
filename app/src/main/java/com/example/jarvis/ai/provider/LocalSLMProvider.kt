@@ -1,6 +1,9 @@
 package com.example.jarvis.ai.provider
 
+import android.content.Context
 import android.content.ComponentCallbacks2
+import com.arm.aichat.AiChat
+import com.arm.aichat.InferenceEngine
 import com.example.jarvis.ai.matcher.DeterministicIntentMatcher
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
 import com.example.jarvis.core.JarvisResult
@@ -12,9 +15,11 @@ import com.example.jarvis.domain.model.ProviderHealth
 import com.example.jarvis.domain.model.StructuredIntent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 
 class LocalSLMProvider(
+    private val appContext: Context? = null,
     private var activeModelName: String = "Embedded-AZ-SLM-v1",
     private val normalizer: AzerbaijaniTextNormalizer = AzerbaijaniTextNormalizer(),
     private val matcher: DeterministicIntentMatcher = DeterministicIntentMatcher(normalizer),
@@ -25,6 +30,9 @@ class LocalSLMProvider(
     override val modelName: String get() = if (isQuantizedMode) "$activeModelName (4-bit INT4)" else activeModelName
 
     private var isModelLoaded: Boolean = true
+    private var inferenceEngine: InferenceEngine? = null
+    private var modelPath: String? = null
+    private var nativeModelReady = false
     private val maxKvCacheEntries: Int = 16
 
     fun setModelName(name: String) {
@@ -33,6 +41,8 @@ class LocalSLMProvider(
 
     fun unloadModel() {
         isModelLoaded = false
+        inferenceEngine?.cleanUp()
+        nativeModelReady = false
     }
 
     fun loadModel() {
@@ -161,6 +171,33 @@ class LocalSLMProvider(
         prompt: String,
         context: List<ConversationMessage>
     ): JarvisResult<GenerationResponse> {
+        val app = appContext
+        if (app != null) {
+            val engine = inferenceEngine ?: AiChat.getInferenceEngine(app).also { inferenceEngine = it }
+            if (modelPath == null) {
+                val destination = java.io.File(app.filesDir, "jarvis-az-qwen2.5-0.5b-q4_k_m.gguf")
+                if (!destination.exists()) {
+                    app.assets.open("jarvis-az-qwen2.5-0.5b-q4_k_m.gguf").use { input ->
+                        destination.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                modelPath = destination.absolutePath
+            }
+            try {
+                if (!nativeModelReady) {
+                    engine.state.first { it is InferenceEngine.State.Initialized }
+                    engine.loadModel(modelPath!!)
+                    engine.setSystemPrompt("Sən JARVIS adlı Azərbaycan dilli Android köməkçisisən. Qısa, aydın və yalnız Azərbaycan dilində cavab ver.")
+                    nativeModelReady = true
+                }
+                val generated = StringBuilder()
+                engine.sendUserPrompt(prompt, 256).collect { generated.append(it) }
+                isModelLoaded = true
+                return JarvisResult.Success(GenerationResponse(generated.toString().trim(), AIProviderType.LOCAL_SLM, true))
+            } catch (_: Exception) {
+                // Fall back to deterministic offline responses if native loading fails.
+            }
+        }
         if (!isModelLoaded) {
             loadModel()
         }

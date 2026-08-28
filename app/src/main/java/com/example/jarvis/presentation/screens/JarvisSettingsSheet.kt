@@ -37,8 +37,13 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,9 +78,14 @@ fun JarvisSettingsSheet(
     onToggleLowRamMode: (Boolean) -> Unit,
     onOpenSystemSettings: () -> Unit,
     onClearConversations: () -> Unit,
+    isTtsEnabled: Boolean,
+    hasGeminiApiKey: Boolean,
+    onToggleTts: (Boolean) -> Unit,
+    onGeminiApiKeyChanged: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var apiKey by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -159,6 +169,36 @@ fun JarvisSettingsSheet(
                     isSelected = activeProviderType == AIProviderType.FALLBACK_HYBRID,
                     onClick = { onSelectProvider(AIProviderType.FALLBACK_HYBRID) }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("SƏS VƏ GEMINI", color = JarvisTextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp)).padding(12.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Cavabları səsləndir", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Söndürüləndə JARVIS yalnız ekranda cavab verir.", color = JarvisTextSecondary, fontSize = 11.sp)
+                    }
+                    Switch(checked = isTtsEnabled, onCheckedChange = onToggleTts)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = {
+                        apiKey = it
+                        onGeminiApiKeyChanged(it)
+                    },
+                    label = { Text(if (hasGeminiApiKey) "Gemini API açarı saxlanılıb" else "Gemini API açarı") },
+                    placeholder = { Text("AIza...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Açar yalnız bu cihazda saxlanır.", color = JarvisTextSecondary, fontSize = 10.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

@@ -24,6 +24,8 @@ data class JarvisUiState(
     val isLowRamModeEnforced: Boolean = false,
     val speechError: String? = null,
     val showSettingsSheet: Boolean = false,
+    val isTtsEnabled: Boolean = false,
+    val hasGeminiApiKey: Boolean = false,
     val performanceMetrics: com.example.jarvis.core.PerformanceMetrics? = null,
     val confirmationProfile: com.example.jarvis.security.ConfirmationProfile = com.example.jarvis.security.ConfirmationProfile.STANDARD
 )

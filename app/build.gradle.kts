@@ -21,6 +21,23 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    ndkVersion = "29.0.13113456"
+    ndk {
+      abiFilters += listOf("arm64-v8a")
+    }
+    externalNativeBuild {
+      cmake {
+        arguments += "-DCMAKE_BUILD_TYPE=Release"
+        arguments += "-DLLAMA_BUILD_APP=OFF"
+        arguments += "-DLLAMA_BUILD_COMMON=ON"
+        arguments += "-DLLAMA_OPENSSL=OFF"
+        arguments += "-DGGML_NATIVE=OFF"
+        arguments += "-DGGML_BACKEND_DL=ON"
+        arguments += "-DGGML_CPU_ALL_VARIANTS=ON"
+        arguments += "-DGGML_LLAMAFILE=OFF"
+      }
+    }
   }
 
   signingConfigs {
@@ -69,6 +86,12 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+  }
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/llama-binding/CMakeLists.txt")
+      version = "3.28.3"
+    }
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {

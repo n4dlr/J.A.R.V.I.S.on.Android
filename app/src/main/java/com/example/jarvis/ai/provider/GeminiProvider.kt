@@ -21,6 +21,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 class GeminiProvider(
+    private val runtimeApiKey: () -> String = { "" },
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
@@ -36,10 +37,8 @@ class GeminiProvider(
         prompt: String,
         context: List<ConversationMessage>
     ): JarvisResult<GenerationResponse> = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (_: Throwable) {
-            ""
+        val apiKey = runtimeApiKey().ifBlank {
+            try { BuildConfig.GEMINI_API_KEY } catch (_: Throwable) { "" }
         }
 
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
@@ -138,7 +137,9 @@ class GeminiProvider(
     }
 
     override suspend fun healthCheck(): ProviderHealth {
-        val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (_: Throwable) { "" }
+        val apiKey = runtimeApiKey().ifBlank {
+            try { BuildConfig.GEMINI_API_KEY } catch (_: Throwable) { "" }
+        }
         val hasKey = apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY"
         return ProviderHealth(
             providerType = AIProviderType.GEMINI_CLOUD,

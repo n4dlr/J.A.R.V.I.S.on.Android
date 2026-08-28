@@ -481,6 +481,10 @@ fun JarvisMainScreen(
                 context.startActivity(viewModel.permissionManager.getAppSettingsIntent())
             },
             onClearConversations = { viewModel.clearConversations() },
+            isTtsEnabled = uiState.isTtsEnabled,
+            hasGeminiApiKey = uiState.hasGeminiApiKey,
+            onToggleTts = { viewModel.setTtsEnabled(it) },
+            onGeminiApiKeyChanged = { viewModel.setGeminiApiKey(it) },
             onDismiss = { viewModel.toggleSettingsSheet(false) }
         )
     }

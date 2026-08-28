@@ -12,6 +12,7 @@ class TextToSpeechHelper(private val context: Context) : TextToSpeech.OnInitList
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    var isEnabled: Boolean = false
 
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
@@ -54,7 +55,8 @@ class TextToSpeechHelper(private val context: Context) : TextToSpeech.OnInitList
         }
     }
 
-    fun speak(text: String) {
+    fun speak(text: String, force: Boolean = false) {
+        if (!force && !isEnabled) return
         if (!isInitialized || text.isBlank()) return
         stop()
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "JARVIS_UTTERANCE_${System.currentTimeMillis()}")

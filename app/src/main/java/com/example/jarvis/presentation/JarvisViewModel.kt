@@ -37,6 +37,10 @@ import kotlinx.coroutines.launch
 class JarvisViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context = application.applicationContext
+    private val preferences = context.getSharedPreferences("jarvis_settings", android.content.Context.MODE_PRIVATE)
+    private var storedGeminiApiKey: String
+        get() = preferences.getString("gemini_api_key", "").orEmpty()
+        set(value) = preferences.edit().putString("gemini_api_key", value.trim()).apply()
 
     // Core managers & dependencies
     val lowRamManager = LowRamManager(context)
@@ -52,8 +56,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     val memoryManager = MemoryManager(repository, lowRamManager)
 
     // AI Providers
-    private val localSLMProvider = LocalSLMProvider(normalizer = normalizer, matcher = matcher)
-    private val geminiProvider = GeminiProvider()
+    private val localSLMProvider = LocalSLMProvider(appContext = context, normalizer = normalizer, matcher = matcher)
+    private val geminiProvider = GeminiProvider(runtimeApiKey = { storedGeminiApiKey })
     private val fallbackProvider = FallbackProvider(localSLMProvider, geminiProvider, true)
     private var activeProvider: AIProvider = fallbackProvider
 
@@ -62,7 +66,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     // Voice & TTS
     val voiceHelper = VoiceRecognizerHelper(context)
-    val ttsHelper = TextToSpeechHelper(context)
+    val ttsHelper = TextToSpeechHelper(context).apply {
+        isEnabled = preferences.getBoolean("tts_enabled", false)
+    }
 
     // RAG Engine
     val ragEngine = RAGEngine(repository)
@@ -86,7 +92,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         JarvisUiState(
             telemetry = lowRamManager.refreshTelemetry(),
             permissionStatuses = permissionManager.getAllPermissionStatuses(),
-            isLowRamModeEnforced = lowRamManager.isLowRamEnvironment()
+            isLowRamModeEnforced = lowRamManager.isLowRamEnvironment(),
+            isTtsEnabled = preferences.getBoolean("tts_enabled", false),
+            hasGeminiApiKey = storedGeminiApiKey.isNotBlank()
         )
     )
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -147,6 +155,19 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun stopVoiceListening() {
         voiceHelper.stopListening()
+    }
+
+    fun setTtsEnabled(enabled: Boolean) {
+        ttsHelper.isEnabled = enabled
+        preferences.edit().putBoolean("tts_enabled", enabled).apply()
+        if (!enabled) ttsHelper.stop()
+        _uiState.update { it.copy(isTtsEnabled = enabled) }
+    }
+
+    fun setGeminiApiKey(apiKey: String) {
+        storedGeminiApiKey = apiKey
+        _uiState.update { it.copy(hasGeminiApiKey = apiKey.trim().isNotBlank()) }
+        viewModelScope.launch(Dispatchers.IO) { refreshProviderHealth() }
     }
 
     fun submitTextCommand() {
