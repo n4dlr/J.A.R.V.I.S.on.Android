@@ -12,4 +12,5 @@
     <string name="confirm_btn">Təsdiq et</string>
     <string name="cancel_btn">Ləğv et</string>
     <string name="permission_required">İcazə tələb olunur</string>
+    <string name="accessibility_service_desc">JARVIS Əlçatımlılıq Xidməti səssiz və ya səsli əmrlərlə sistemi idarə etmək, ekrandakı məzmunu oxumaq və naviqasiya əmrlərini icra etmək üçün istifadə olunur.</string>
 </resources>

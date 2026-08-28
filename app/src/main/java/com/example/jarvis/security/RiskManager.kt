@@ -78,7 +78,12 @@ class RiskManager(
         val promptText = when (toolId) {
             "LOCK_SCREEN" -> "Ekranı dərhal kilidləmək istədiyinizə əminsiniz?"
             "TAKE_PHOTO" -> "Kameranı açıb şəkil çəkməyə icazə verirsiniz?"
-            "CREATE_REMINDER" -> "Xatırlatma təyin edilsin: '${intent.arguments["title"] ?: intent.rawQuery}'?"
+            "CREATE_REMINDER", "CREATE_ALARM" -> "Xatırlatma/Zəngli saat qurulsun: '${intent.arguments["title"] ?: intent.arguments["message"] ?: intent.rawQuery}'?"
+            "DELETE_FILE" -> "'${intent.arguments["path"] ?: "Seçilmiş faylı"}' faylını silmək istədiyinizə əminsiniz?"
+            "CALL_CONTACT" -> "'${intent.arguments["name"] ?: intent.arguments["number"] ?: "bu nömrəyə"}' zəng etmək istəyirsiniz?"
+            "DIAL_NUMBER" -> "'${intent.arguments["number"] ?: "bu nömrəni"}' yığmaq istəyirsiniz?"
+            "DELETE_EVENT" -> "Təqvim hadisəsini silmək istəyirsiniz?"
+            "CREATE_CONTACT" -> "'${intent.arguments["name"] ?: "Yeni kontakt"}' kontaktını yaratmaq istəyirsiniz?"
             else -> "'$toolId' əməliyyatını icra etmək istəyirsiniz?"
         }
 

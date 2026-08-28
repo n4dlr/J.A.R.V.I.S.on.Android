@@ -9,6 +9,28 @@ enum class ToolStatus {
     CONFIRMATION_REQUIRED
 }
 
+/** Pre-flight capability detection result for a tool. */
+enum class CapabilityStatus {
+    /** Tool is fully supported and permissions are granted. */
+    SUPPORTED,
+    /** Tool cannot work on this Android version or device. */
+    UNSUPPORTED,
+    /** Tool needs one or more runtime permissions. */
+    PERMISSION_REQUIRED,
+    /** Tool needs non-runtime special access (Accessibility, Notification Listener, Device Admin, etc.) */
+    SPECIAL_ACCESS_REQUIRED
+}
+
+/** Summary of a single capability check. */
+data class CapabilityInfo(
+    val toolId: String,
+    val status: CapabilityStatus,
+    val reason: String,
+    val missingPermissions: List<String> = emptyList(),
+    val minApiLevel: Int = 0,
+    val currentApiLevel: Int = android.os.Build.VERSION.SDK_INT
+)
+
 data class ToolParameter(
     val name: String,
     val type: String,
@@ -71,6 +93,15 @@ data class ToolResult(
                 toolId = toolId,
                 status = ToolStatus.UNSUPPORTED,
                 outputMessage = reason
+            )
+
+        fun specialAccessRequired(toolId: String, accessType: String, message: String): ToolResult =
+            ToolResult(
+                toolId = toolId,
+                status = ToolStatus.PERMISSION_REQUIRED,
+                outputMessage = message,
+                missingPermissions = listOf(accessType),
+                errorDetails = "SPECIAL_ACCESS: $accessType"
             )
     }
 }
