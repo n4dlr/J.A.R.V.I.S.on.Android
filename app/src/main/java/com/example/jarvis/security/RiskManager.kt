@@ -1,0 +1,93 @@
+package com.example.jarvis.security
+
+import com.example.jarvis.domain.model.PendingActionConfirmation
+import com.example.jarvis.domain.model.RiskAssessment
+import com.example.jarvis.domain.model.RiskLevel
+import com.example.jarvis.domain.model.StructuredIntent
+import java.util.UUID
+
+class CommandSanitizer {
+
+    private val dangerousPatterns = listOf(
+        Regex("""(?i)\b(su|sudo|chmod|chown|rm\s+-rf|reboot|setenforce|busybox|sh|bash|mount|dd\s+if=)\b"""),
+        Regex("""(?i)\b(system/bin|system/xbin|init\.rc|build\.prop|data/data)\b"""),
+        Regex("""(?i)[;&|`$><]""") // Shell meta-characters
+    )
+
+    fun sanitizeInput(rawText: String): String {
+        var clean = rawText.trim()
+        if (clean.length > 500) {
+            clean = clean.substring(0, 500)
+        }
+        return clean
+    }
+
+    fun isSuspiciousShellAttempt(text: String): Boolean {
+        return dangerousPatterns.any { it.containsMatchIn(text) }
+    }
+
+    fun sanitizeArgument(key: String, value: String): String {
+        return value.trim().take(120)
+    }
+}
+
+class RiskManager(
+    private val sanitizer: CommandSanitizer = CommandSanitizer()
+) {
+    fun assessRisk(intent: StructuredIntent, toolRiskLevel: RiskLevel): RiskAssessment {
+        val warnings = mutableListOf<String>()
+
+        // 1. Security Check: Reject shell injection or exploit signatures
+        if (sanitizer.isSuspiciousShellAttempt(intent.rawQuery)) {
+            return RiskAssessment(
+                riskLevel = RiskLevel.CRITICAL,
+                requiresExplicitConfirmation = true,
+                rationale = "Təhlükəli sistem əmri və ya shell script şübhəsi aşkar edildi. Birbaşa icraya icazə verilmir.",
+                securityWarnings = listOf("Arbitrary shell execution strictly prohibited.")
+            )
+        }
+
+        // 2. Map risk according to tool level and intent nature
+        val requiresConfirmation = when (toolRiskLevel) {
+            RiskLevel.LOW -> false
+            RiskLevel.MEDIUM -> false
+            RiskLevel.HIGH -> true
+            RiskLevel.CRITICAL -> true
+        }
+
+        val rationaleAz = when (toolRiskLevel) {
+            RiskLevel.LOW -> "Təhlükəsiz oxu/məlumat əməliyyatı."
+            RiskLevel.MEDIUM -> "Cihazın tənzimləməsinə təsir edən standart əməliyyat."
+            RiskLevel.HIGH -> "Cihazın vəziyyətini dəyişən yüksək riskli əməliyyat (Məs: ekranın kilidlənməsi, xatırlatma əlavəsi)."
+            RiskLevel.CRITICAL -> "Kritik əməliyyat — istifadəçinin dəqiq təsdiqi tələb olunur."
+        }
+
+        return RiskAssessment(
+            riskLevel = toolRiskLevel,
+            requiresExplicitConfirmation = requiresConfirmation,
+            rationale = rationaleAz,
+            securityWarnings = warnings
+        )
+    }
+
+    fun createPendingConfirmation(
+        toolId: String,
+        intent: StructuredIntent,
+        assessment: RiskAssessment
+    ): PendingActionConfirmation {
+        val promptText = when (toolId) {
+            "LOCK_SCREEN" -> "Ekranı dərhal kilidləmək istədiyinizə əminsiniz?"
+            "TAKE_PHOTO" -> "Kameranı açıb şəkil çəkməyə icazə verirsiniz?"
+            "CREATE_REMINDER" -> "Xatırlatma təyin edilsin: '${intent.arguments["title"] ?: intent.rawQuery}'?"
+            else -> "'$toolId' əməliyyatını icra etmək istəyirsiniz?"
+        }
+
+        return PendingActionConfirmation(
+            id = UUID.randomUUID().toString(),
+            toolId = toolId,
+            structuredIntent = intent,
+            riskAssessment = assessment,
+            userPromptText = promptText
+        )
+    }
+}

@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="jarvis_title">JARVIS AI ASSISTANT</string>
+    <string name="jarvis_subtitle">OFFLINE-FIRST CORE SYSTEM</string>
+    <string name="jarvis_listening">Dinləyirəm…</string>
+    <string name="jarvis_processing">Əmr emal olunur…</string>
+    <string name="jarvis_ready">JARVIS hazırdır. Əmrinizi deyin və ya yazın.</string>
+    <string name="btn_send">Göndər</string>
+    <string name="btn_speak">Danış</string>
+    <string name="btn_clear">Təmizlə</string>
+    <string name="confirm_title">Təsdiq Tələb Olunur</string>
+    <string name="confirm_btn">Təsdiq et</string>
+    <string name="cancel_btn">Ləğv et</string>
+    <string name="permission_required">İcazə tələb olunur</string>
+</resources>
