@@ -43,8 +43,18 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug & Release APKs
-        run: ./gradlew assembleDebug assembleRelease --stacktrace
+      - name: Cache Gradle Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Prepare APK Artifacts
         id: prepare_apk
@@ -54,17 +64,10 @@ jobs:
           
           # Locate debug APK
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk "release_artifacts/JARVIS-Android-${TAG}-debug.apk"
+            cp app/build/outputs/apk/debug/app-debug.apk "release_artifacts/JARVIS-Android-${TAG}.apk"
+            echo "Found debug APK"
           fi
           
-          # Locate release APK
-          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk "release_artifacts/JARVIS-Android-${TAG}-release.apk"
-          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk "release_artifacts/JARVIS-Android-${TAG}-release.apk"
-          fi
-          
-          echo "ARTIFACTS_DIR=release_artifacts" >> $GITHUB_OUTPUT
           ls -lh release_artifacts
 
       - name: Upload APKs as Workflow Artifacts
@@ -77,7 +80,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          name: "J.A.R.V.I.S. on Android ${{ github.event.inputs.tag_name || github.ref_name }} — Production Release"
+          name: "J.A.R.V.I.S. on Android ${{ github.event.inputs.tag_name || github.ref_name }}"
           draft: false
           prerelease: false
           files: release_artifacts/*.apk
@@ -86,16 +89,16 @@ jobs:
             
             **AI-dəstəkli, offline-first, rootsuz, Azərbaycan dilini tam dəstəkləyən real Android şəxsi AI agenti**
             
-            ### 📦 Qoşulmuş APK Faylları:
-            - **`JARVIS-Android-${{ github.event.inputs.tag_name || github.ref_name }}-debug.apk`** — Birbaşa quraşdırıla bilən standart APK (tövsiyə olunur).
-            - **`JARVIS-Android-${{ github.event.inputs.tag_name || github.ref_name }}-release.apk`** — Production Release APK.
+            ### 📦 APK Quraşdırma:
+            Birbaşa `JARVIS-Android-${{ github.event.inputs.tag_name || github.ref_name }}.apk` faylını yükləyib cihazınıza quraşdırın.
+            > ⚙️ Parametrlər → Tətbiqlər → Naməlum mənbələrdən quraşdırmaya icazə verin.
             
             ### ✨ Əsas Xüsusiyyətlər:
-            - **60+ Sistem Aləti:** Batareya, RAM, CPU, Yaddaş, Səs, Fənər, Zəngli saat, Fayl idarəsi, Şəbəkə, SMS, Zənglər, Əlçatımlılıq.
-            - **Lokal Yaddaş (Room SQLite v2):** Faktlar (`"Bunu yadda saxla"`), Tərcihlər, Tapşırıqlar.
-            - **On-Device RAG:** Sürətli BM25 lokal axtarış mexanizmi (<1ms).
-            - **Avtonom Agent:** 5-addımlı sistem diaqnostikası (`"Telefonum niyə yavaşdır?"`).
-            - **4 GB RAM Optimizasiyası:** 4-bit INT4 SLM, KV-cache trim, < 35 MB idle RAM.
-            - **100% Rootless:** Bütün Android 9+ (API 28-36) cihazlarla tam uyğunluq.
+            - **60+ Sistem Aləti:** Batareya, RAM, CPU, Yaddaş, Səs, Fənər, Zəngli saat, Fayl, Şəbəkə, SMS, Zənglər.
+            - **Lokal Yaddaş (Room SQLite v2):** `"Bunu yadda saxla"` / `"Bunu unut"`.
+            - **On-Device RAG:** BM25 lokal axtarış (<1ms latency).
+            - **Avtonom Agent:** 5-addımlı sistem diaqnostikası.
+            - **4 GB RAM Optimizasiyası:** INT4 SLM, < 35 MB idle RAM.
+            - **Android 9–16 (API 28–36) uyğunluq.**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
