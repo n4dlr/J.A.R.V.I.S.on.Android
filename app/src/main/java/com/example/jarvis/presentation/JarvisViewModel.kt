@@ -19,6 +19,7 @@ import com.example.jarvis.domain.model.ConversationMessage
 import com.example.jarvis.domain.model.PendingActionConfirmation
 import com.example.jarvis.memory.MemoryManager
 import com.example.jarvis.permissions.PermissionManager
+import com.example.jarvis.rag.RAGEngine
 import com.example.jarvis.security.CommandSanitizer
 import com.example.jarvis.security.RiskManager
 import com.example.jarvis.tools.ToolRegistry
@@ -195,6 +196,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                             speechError = output.reason
                         )
                     }
+                }
+            }
+
             _uiState.update {
                 it.copy(performanceMetrics = commandPipeline.performanceTracker.getMetrics())
             }

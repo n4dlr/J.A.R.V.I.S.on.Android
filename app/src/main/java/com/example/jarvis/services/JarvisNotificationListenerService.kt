@@ -95,11 +95,7 @@ private fun StatusBarNotification.toSimple(): SimpleNotification {
     val extras = notification?.extras
     val title = extras?.getCharSequence("android.title")?.toString() ?: ""
     val text  = extras?.getCharSequence("android.text")?.toString()  ?: ""
-    val appLabel = try {
-        packageManager?.getApplicationLabel(
-            packageManager!!.getApplicationInfo(packageName, 0)
-        )?.toString() ?: packageName
-    } catch (_: Exception) { packageName }
+    val appLabel = packageName
 
     return SimpleNotification(
         key = key ?: "",

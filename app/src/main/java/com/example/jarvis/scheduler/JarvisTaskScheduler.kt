@@ -5,7 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import com.example.jarvis.MainActivity
+import com.example.MainActivity
 import com.example.jarvis.domain.model.TaskLifecycleStatus
 import com.example.jarvis.memory.MemoryManager
 import java.util.Calendar

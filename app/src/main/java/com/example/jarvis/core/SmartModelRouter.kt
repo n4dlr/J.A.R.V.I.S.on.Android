@@ -68,7 +68,7 @@ class SmartModelRouter(
 
         // 4. NORMAL COMMAND: Local SLM Classification
         val localIntent = localSLMProvider.classifyIntent(rawQuery)
-        if (localIntent.confidence != IntentConfidence.UNKNOWN && localIntent.confidence != IntentConfidence.LOW_HEURISTIC) {
+        if (localIntent.confidence != IntentConfidence.UNKNOWN && localIntent.confidence != IntentConfidence.LOW_AMBIGUOUS) {
             commandCache.put(rawQuery, localIntent)
             return RoutingDecision(
                 target = RoutingTarget.LOCAL_SLM,
