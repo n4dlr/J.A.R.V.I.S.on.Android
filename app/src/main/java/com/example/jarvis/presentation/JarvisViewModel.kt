@@ -195,11 +195,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                             speechError = output.reason
                         )
                     }
-                }
+            _uiState.update {
+                it.copy(performanceMetrics = commandPipeline.performanceTracker.getMetrics())
             }
 
             lowRamManager.refreshTelemetry()
         }
+    }
+
+    fun setConfirmationProfile(profile: com.example.jarvis.security.ConfirmationProfile) {
+        riskManager.confirmationProfile = profile
+        _uiState.update { it.copy(confirmationProfile = profile) }
     }
 
     fun confirmPendingAction(confirmation: PendingActionConfirmation) {
@@ -207,9 +213,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update { it.copy(pendingConfirmation = null, isProcessing = true) }
             val output = commandPipeline.processCommand(confirmation.structuredIntent.rawQuery, isConfirmed = true)
             if (output is PipelineOutput.Executed) {
-                _uiState.update { it.copy(isProcessing = false, lastToolResult = output.toolResult) }
+                _uiState.update { it.copy(isProcessing = false, lastToolResult = output.toolResult, performanceMetrics = commandPipeline.performanceTracker.getMetrics()) }
             } else {
-                _uiState.update { it.copy(isProcessing = false) }
+                _uiState.update { it.copy(isProcessing = false, performanceMetrics = commandPipeline.performanceTracker.getMetrics()) }
             }
         }
     }

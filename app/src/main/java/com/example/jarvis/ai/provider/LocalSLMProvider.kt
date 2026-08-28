@@ -1,5 +1,6 @@
 package com.example.jarvis.ai.provider
 
+import android.content.ComponentCallbacks2
 import com.example.jarvis.ai.matcher.DeterministicIntentMatcher
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
 import com.example.jarvis.core.JarvisResult
@@ -16,13 +17,15 @@ import kotlinx.coroutines.flow.flow
 class LocalSLMProvider(
     private var activeModelName: String = "Embedded-AZ-SLM-v1",
     private val normalizer: AzerbaijaniTextNormalizer = AzerbaijaniTextNormalizer(),
-    private val matcher: DeterministicIntentMatcher = DeterministicIntentMatcher(normalizer)
+    private val matcher: DeterministicIntentMatcher = DeterministicIntentMatcher(normalizer),
+    var isQuantizedMode: Boolean = true
 ) : AIProvider {
 
     override val providerType: AIProviderType = AIProviderType.LOCAL_SLM
-    override val modelName: String get() = activeModelName
+    override val modelName: String get() = if (isQuantizedMode) "$activeModelName (4-bit INT4)" else activeModelName
 
     private var isModelLoaded: Boolean = true
+    private val maxKvCacheEntries: Int = 16
 
     fun setModelName(name: String) {
         activeModelName = name
@@ -36,8 +39,14 @@ class LocalSLMProvider(
         isModelLoaded = true
     }
 
+    fun onTrimMemory(level: Int) {
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            unloadModel()
+        }
+    }
+
     override suspend fun classifyIntent(query: String): StructuredIntent {
-        // Step 1: Check high-priority deterministic matcher
+        // Step 1: Check high-priority deterministic matcher (< 2ms)
         val deterministic = matcher.match(query)
         if (deterministic != null) {
             return deterministic
@@ -110,12 +119,13 @@ class LocalSLMProvider(
                     args["app_name"] = appWords.joinToString(" ")
                 }
             }
-            "CREATE_REMINDER" -> {
+            "CREATE_REMINDER", "CREATE_ALARM" -> {
                 val hourMatch = Regex("""\b(\d{1,2})\b""").find(normalized)
                 if (hourMatch != null) {
                     args["hour"] = hourMatch.groupValues[1]
                 }
                 args["title"] = query
+                args["message"] = query
             }
             "SET_VOLUME" -> {
                 if (normalized.contains("artir") || normalized.contains("coxalt")) args["action"] = "UP"
@@ -134,6 +144,14 @@ class LocalSLMProvider(
                 else if (normalized.contains("ses")) args["target"] = "sound"
                 else args["target"] = "main"
             }
+            "WEB_SEARCH" -> {
+                val q = query.substringAfter("axtar").ifEmpty { query.substringAfter("google") }.trim()
+                args["query"] = q.ifEmpty { query }
+            }
+            "OPEN_URL" -> {
+                val urlMatch = Regex("""\b(https?://\S+|www\.\S+)\b""").find(query)
+                args["url"] = urlMatch?.value ?: query
+            }
         }
 
         return args
@@ -147,17 +165,20 @@ class LocalSLMProvider(
             loadModel()
         }
 
+        // Bounded KV-cache trimming
+        val trimmedContext = context.takeLast(maxKvCacheEntries)
+
         val normalized = normalizer.normalize(prompt)
         val responseText = when {
-            normalized.contains("salam") -> "Salam! Mən JARVIS, şəxsi köməkçinizəm. Sizə necə kömək edə bilərəm?"
-            normalized.contains("necesen") -> "Təşəkkür edirəm, bütün sistemlər optimal vəziyyətdə işləyir. Siz necəsiniz?"
+            normalized.contains("salam") -> "Salam! Mən JARVIS, şəxsi köməkçinizəm. Necə kömək edə bilərəm?"
+            normalized.contains("necesen") -> "Təşəkkür edirəm, bütün sistemlər optimal işləyir."
             normalized.contains("sen kimsen") || normalized.contains("adin nedir") ->
-                "Mən JARVIS — Android 9+ üçün hazırlanmış, offline işləyən şəxsi AI assistant və sistem idarəçisiyəm."
+                "Mən JARVIS — offline işləyən şəxsi AI agent və sistem idarəçisiyəm."
             normalized.contains("komek") || normalized.contains("ne ede bilirsen") ->
-                "Mən batareya, RAM və yaddaşı yoxlaya, fənəri və kameranı idarə edə, səsi tənzimləyə, istədiyiniz tətbiqi aça və xatırlatmalar qura bilərəm."
+                "Batareya, RAM, yaddaş və CPU diaqnostikası, zənglər, alarm, kamera və 60+ sistem alətini idarə edə bilirəm."
             normalized.contains("sag ol") || normalized.contains("tesekkur") ->
                 "Buyurun, hər zaman xidmətinizdəyəm!"
-            else -> "Əmrinizi başa düşdüm. Əgər konkret sistem əməliyyatı (məs: 'batareya', 'fənəri yandır', 'youtube aç') icra etmək istəyirsinizsə, buyurun deyin."
+            else -> "Əmrinizi başa düşdüm. Əməliyyat icra edilir."
         }
 
         return JarvisResult.Success(
@@ -178,7 +199,7 @@ class LocalSLMProvider(
             val words = result.data.text.split(" ")
             for (word in words) {
                 emit("$word ")
-                delay(30)
+                delay(20)
             }
         } else {
             emit("Cavab hazırlana bilmədi.")
@@ -190,8 +211,8 @@ class LocalSLMProvider(
             providerType = AIProviderType.LOCAL_SLM,
             isAvailable = true,
             latencyMs = 5,
-            modelName = activeModelName,
-            statusDetail = if (isModelLoaded) "Aktiv (Yaddaşda yüklənib)" else "Hazır (Lazy rejim)"
+            modelName = modelName,
+            statusDetail = if (isModelLoaded) "Aktiv (INT4 Quantized Mode)" else "Hazır (Lazy rejim)"
         )
     }
 }

@@ -6,6 +6,14 @@ import com.example.jarvis.agent.AgentPlanner
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
 import com.example.jarvis.ai.provider.AIProvider
 import com.example.jarvis.context.ConversationContextManager
+import com.example.jarvis.core.CommandCache
+import com.example.jarvis.core.CrashRecoveryManager
+import com.example.jarvis.core.FallbackAction
+import com.example.jarvis.core.PerformanceTracker
+import com.example.jarvis.core.RoutingTarget
+import com.example.jarvis.core.SmartModelRouter
+import com.example.jarvis.core.ToolSecurityValidator
+import com.example.jarvis.core.ValidationResult
 import com.example.jarvis.domain.model.ConversationMessage
 import com.example.jarvis.domain.model.ExecutionLog
 import com.example.jarvis.domain.model.MessageSender
@@ -58,10 +66,14 @@ class CommandPipeline(
     private val ragEngine: RAGEngine? = null,
     private val contextManager: ConversationContextManager = ConversationContextManager(),
     private val agentPlanner: AgentPlanner = AgentPlanner(normalizer),
-    private val agentExecutor: AgentExecutor = AgentExecutor(toolRegistry, memoryManager)
+    private val agentExecutor: AgentExecutor = AgentExecutor(toolRegistry, memoryManager),
+    val performanceTracker: PerformanceTracker = PerformanceTracker(),
+    val commandCache: CommandCache = CommandCache(normalizer),
+    val securityValidator: ToolSecurityValidator = ToolSecurityValidator(toolRegistry),
+    val crashRecoveryManager: CrashRecoveryManager = CrashRecoveryManager()
 ) {
 
-    suspend fun processCommand(rawInput: String, isConfirmed: Boolean = false): PipelineOutput {
+    suspend fun processCommand(rawInput: String, isConfirmed: Boolean = false, isOnline: Boolean = true): PipelineOutput {
         val startTime = System.currentTimeMillis()
 
         // 1. Sanitize & Normalize Input
@@ -113,8 +125,13 @@ class CommandPipeline(
 
         // 3. MULTI-STEP AGENT PLANNING & DIAGNOSTICS
         if (agentPlanner.shouldPlan(sanitized)) {
+            val planStart = System.currentTimeMillis()
             val plan = agentPlanner.createPlan(sanitized)
             val execResult = agentExecutor.executePlan(context, plan)
+            val planDuration = System.currentTimeMillis() - planStart
+            performanceTracker.recordToolLatency(planDuration)
+            performanceTracker.recordOperationTotal(System.currentTimeMillis() - startTime)
+
             ttsHelper.speak(execResult.summary)
             recordAssistantMessage(sanitized, "AGENT_DIAGNOSTICS", execResult.summary, startTime)
             return PipelineOutput.Executed(
@@ -125,32 +142,40 @@ class CommandPipeline(
             )
         }
 
-        // 4. MULTI-TURN CONTEXT RESOLUTION
+        // 4. SMART MODEL ROUTING & MULTI-TURN CONTEXT RESOLUTION
+        val intentStart = System.currentTimeMillis()
         var structuredIntent = contextManager.resolveContextualQuery(normalized)
+            ?: commandCache.get(sanitized)
             ?: aiProvider.classifyIntent(sanitized)
 
+        performanceTracker.recordIntentLatency(System.currentTimeMillis() - intentStart)
         contextManager.updateContext(structuredIntent)
 
         // 5. Check if Intent maps to a Tool
         val tool = toolRegistry.getTool(structuredIntent.intentId)
 
         if (tool == null) {
-            // 6. RAG LOCAL KNOWLEDGE CHECK
+            // 6. RAG LOCAL KNOWLEDGE CHECK (< 2ms)
             val ragAnswer = ragEngine?.answerIfKnowledgeAvailable(sanitized)
             if (ragAnswer != null) {
                 recordAssistantMessage(sanitized, "RAG_KNOWLEDGE", ragAnswer, startTime)
                 ttsHelper.speak(ragAnswer)
+                performanceTracker.recordOperationTotal(System.currentTimeMillis() - startTime)
                 return PipelineOutput.ConversationalResponse(sanitized, structuredIntent, ragAnswer)
             }
 
             // General conversational reply or fallback via AIProvider
             val contextMessages = memoryManager.getShortTermContext()
+            val slmStart = System.currentTimeMillis()
             val aiResponse = aiProvider.generate(sanitized, contextMessages)
+            performanceTracker.recordSlmLatency(System.currentTimeMillis() - slmStart)
+
             val replyText = aiResponse.getOrNull()?.text
                 ?: "Sizi başa düşdüm. Əlavə bir əmriniz var?"
 
             recordAssistantMessage(sanitized, structuredIntent.intentId, replyText, startTime)
             ttsHelper.speak(replyText)
+            performanceTracker.recordOperationTotal(System.currentTimeMillis() - startTime)
             return PipelineOutput.ConversationalResponse(sanitized, structuredIntent, replyText)
         }
 
@@ -158,7 +183,17 @@ class CommandPipeline(
         val extractedArgs = aiProvider.extractArguments(tool.id, sanitized).toMutableMap()
         extractedArgs.putAll(structuredIntent.arguments)
 
-        // 8. Permission Verification
+        // 8. Tool Security Validator (Allowlist, Path traversal, injection check)
+        when (val validation = securityValidator.validateToolExecution(tool.id, extractedArgs, sanitized)) {
+            is ValidationResult.Invalid -> {
+                val errorMsg = "Təhlükəsizlik xətası: ${validation.reason}"
+                ttsHelper.speak(errorMsg)
+                return PipelineOutput.Error(sanitized, errorMsg)
+            }
+            is ValidationResult.Valid -> { /* Proceed */ }
+        }
+
+        // 9. Permission Verification
         val missingPerms = permissionManager.getMissingPermissions(tool.requiredPermissions)
         if (missingPerms.isNotEmpty()) {
             val permResult = ToolResult.permissionRequired(
@@ -170,24 +205,47 @@ class CommandPipeline(
             return PipelineOutput.Executed(sanitized, structuredIntent, permResult, permResult.outputMessage)
         }
 
-        // 9. Risk Assessment & Confirmation System
+        // 10. Risk Assessment & Confirmation System
         val riskAssessment = riskManager.assessRisk(structuredIntent, tool.riskLevel)
         if (riskAssessment.requiresExplicitConfirmation && !isConfirmed) {
             val pendingConfirmation = riskManager.createPendingConfirmation(tool.id, structuredIntent, riskAssessment)
             return PipelineOutput.ConfirmationRequired(pendingConfirmation)
         }
 
-        // 10. Safe Tool Execution
-        val toolResult = try {
+        // 11. Safe Tool Execution with Latency Measurement & Crash Recovery
+        val toolExecStart = System.currentTimeMillis()
+        var toolResult = try {
             tool.execute(context, extractedArgs)
         } catch (e: Exception) {
             ToolResult.failed(tool.id, "İcra zamanı gözlənilməz xəta: ${e.message}")
         }
+        performanceTracker.recordToolLatency(System.currentTimeMillis() - toolExecStart)
 
-        // 11. Result handling, memory logging & TTS response
+        // If tool failed and recovery is available, attempt recovery
+        if (!toolResult.isSuccess) {
+            when (val fallback = crashRecoveryManager.recoverFromToolFailure(tool.id, toolResult.outputMessage)) {
+                is FallbackAction.OpenSettings -> {
+                    val settingsTool = toolRegistry.getTool("OPEN_SETTINGS")
+                    if (settingsTool != null) {
+                        settingsTool.execute(context, mapOf("target" to fallback.settingsType.lowercase()))
+                        toolResult = ToolResult.success(tool.id, fallback.message)
+                    }
+                }
+                is FallbackAction.UseAlternativeTool -> {
+                    val altTool = toolRegistry.getTool(fallback.toolId)
+                    if (altTool != null) {
+                        toolResult = altTool.execute(context, emptyMap())
+                    }
+                }
+                is FallbackAction.TextOnlyResponse -> { /* keep original failed result */ }
+            }
+        }
+
+        // 12. Non-Hallucinatory Result Formatting
         val responseSpeech = toolResult.outputMessage
         handleToolCompletion(sanitized, structuredIntent, tool.id, toolResult, startTime)
         ttsHelper.speak(responseSpeech)
+        performanceTracker.recordOperationTotal(System.currentTimeMillis() - startTime)
 
         return PipelineOutput.Executed(
             query = sanitized,

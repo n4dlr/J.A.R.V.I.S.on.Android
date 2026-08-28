@@ -6,6 +6,15 @@ import com.example.jarvis.domain.model.RiskLevel
 import com.example.jarvis.domain.model.StructuredIntent
 import java.util.UUID
 
+enum class ConfirmationProfile {
+    /** Prompts confirmation for all HIGH and CRITICAL tools. */
+    STRICT,
+    /** Standard profile: prompts for destructive actions (DELETE, CALL) and CRITICAL. */
+    STANDARD,
+    /** Automation mode: prompts only for CRITICAL actions. */
+    AUTOMATED
+}
+
 class CommandSanitizer {
 
     private val dangerousPatterns = listOf(
@@ -32,7 +41,8 @@ class CommandSanitizer {
 }
 
 class RiskManager(
-    private val sanitizer: CommandSanitizer = CommandSanitizer()
+    private val sanitizer: CommandSanitizer = CommandSanitizer(),
+    var confirmationProfile: ConfirmationProfile = ConfirmationProfile.STANDARD
 ) {
     fun assessRisk(intent: StructuredIntent, toolRiskLevel: RiskLevel): RiskAssessment {
         val warnings = mutableListOf<String>()
@@ -47,18 +57,30 @@ class RiskManager(
             )
         }
 
-        // 2. Map risk according to tool level and intent nature
-        val requiresConfirmation = when (toolRiskLevel) {
-            RiskLevel.LOW -> false
-            RiskLevel.MEDIUM -> false
-            RiskLevel.HIGH -> true
-            RiskLevel.CRITICAL -> true
+        // 2. Map risk according to tool level and active confirmation profile
+        val requiresConfirmation = when (confirmationProfile) {
+            ConfirmationProfile.STRICT -> when (toolRiskLevel) {
+                RiskLevel.LOW -> false
+                RiskLevel.MEDIUM -> false
+                RiskLevel.HIGH -> true
+                RiskLevel.CRITICAL -> true
+            }
+            ConfirmationProfile.STANDARD -> when (toolRiskLevel) {
+                RiskLevel.LOW -> false
+                RiskLevel.MEDIUM -> false
+                RiskLevel.HIGH -> intent.intentId in listOf("DELETE_FILE", "CALL_CONTACT", "DELETE_EVENT", "LOCK_SCREEN")
+                RiskLevel.CRITICAL -> true
+            }
+            ConfirmationProfile.AUTOMATED -> when (toolRiskLevel) {
+                RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH -> false
+                RiskLevel.CRITICAL -> true
+            }
         }
 
         val rationaleAz = when (toolRiskLevel) {
             RiskLevel.LOW -> "Təhlükəsiz oxu/məlumat əməliyyatı."
             RiskLevel.MEDIUM -> "Cihazın tənzimləməsinə təsir edən standart əməliyyat."
-            RiskLevel.HIGH -> "Cihazın vəziyyətini dəyişən yüksək riskli əməliyyat (Məs: ekranın kilidlənməsi, xatırlatma əlavəsi)."
+            RiskLevel.HIGH -> "Cihazın vəziyyətini dəyişən yüksək riskli əməliyyat."
             RiskLevel.CRITICAL -> "Kritik əməliyyat — istifadəçinin dəqiq təsdiqi tələb olunur."
         }
 
