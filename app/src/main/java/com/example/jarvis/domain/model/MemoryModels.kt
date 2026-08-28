@@ -6,6 +6,15 @@ enum class MessageSender {
     SYSTEM
 }
 
+enum class TaskLifecycleStatus {
+    PENDING,
+    RUNNING,
+    WAITING,
+    COMPLETED,
+    FAILED,
+    CANCELLED
+}
+
 data class ConversationMessage(
     val id: Long = 0,
     val sender: MessageSender,
@@ -21,6 +30,32 @@ data class MemoryFact(
     val value: String,
     val category: String = "general",
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+data class UserPreference(
+    val key: String,
+    val value: String,
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+data class TaskRecord(
+    val id: String,
+    val title: String,
+    val description: String = "",
+    val status: TaskLifecycleStatus = TaskLifecycleStatus.PENDING,
+    val createdAt: Long = System.currentTimeMillis(),
+    val completedAt: Long? = null,
+    val errorDetails: String? = null
+)
+
+data class DeviceStateSnapshot(
+    val id: Long = 0,
+    val batteryPct: Int,
+    val isCharging: Boolean,
+    val ramUsedPercent: Int,
+    val storageFreeGb: Double,
+    val networkType: String,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 data class ExecutionLog(

@@ -63,6 +63,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     val voiceHelper = VoiceRecognizerHelper(context)
     val ttsHelper = TextToSpeechHelper(context)
 
+    // RAG Engine
+    val ragEngine = RAGEngine(repository)
+
     // Command Pipeline
     private var commandPipeline = CommandPipeline(
         context = context,
@@ -73,7 +76,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         riskManager = riskManager,
         sanitizer = sanitizer,
         memoryManager = memoryManager,
-        ttsHelper = ttsHelper
+        ttsHelper = ttsHelper,
+        ragEngine = ragEngine
     )
 
     // UI State
@@ -230,7 +234,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             riskManager = riskManager,
             sanitizer = sanitizer,
             memoryManager = memoryManager,
-            ttsHelper = ttsHelper
+            ttsHelper = ttsHelper,
+            ragEngine = ragEngine
         )
 
         _uiState.update { it.copy(activeProviderType = providerType) }

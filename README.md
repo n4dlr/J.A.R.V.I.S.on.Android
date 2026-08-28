@@ -4,8 +4,9 @@
 <img src="https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin"/>
 <img src="https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose"/>
 <img src="https://img.shields.io/badge/Gemini%20AI-Firebase-FF6F00?style=for-the-badge&logo=google&logoColor=white" alt="Gemini AI"/>
-<img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License"/>
-<img src="https://img.shields.io/badge/Tools-60%2B%20Capabilities-success?style=for-the-badge" alt="60+ Tools"/>
+<img src="https://img.shields.io/badge/Room%20DB-Local%20Memory-4285F4?style=for-the-badge&logo=sqlite&logoColor=white" alt="Room DB"/>
+<img src="https://img.shields.io/badge/RAG-Lightweight%20On--Device-success?style=for-the-badge" alt="Local RAG"/>
+<img src="https://img.shields.io/badge/Agent-Autonomous%20Planning-FF7043?style=for-the-badge" alt="Agent Engine"/>
 
 <br/><br/>
 
@@ -16,14 +17,14 @@
  ██   ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║
  ╚█████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║███████║
   ╚════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝
-         on Android — Phase 3 (Tool & Capability Engine)
+         on Android — Phase 4 (Memory, RAG & Agent Engine)
 ```
 
 ### _Just A Rather Very Intelligent System — Android üçün_
 
-**AI-dəstəkli, offline-first, rootsuz, Azərbaycan dilini tam dəstəkləyən real Android şəxsi asistanı**
+**AI-dəstəkli, offline-first, lokal yaddaşlı, RAG axtarışlı və agentik iş axınlarına malik şəxsi asistan**
 
-[🚀 Tez başlayın](#-quraşdırma) · [✨ Alətlər və Bacarıqlar](#-alətlər-və-bacarıqlar-60-tool) · [🏗️ Arxitektura](#️-arxitektura) · [🔒 Təhlükəsizlik](#-təhlükəsizlik--risk-idarəetməsi) · [🤝 Töhfə](#-töhfə)
+[🚀 Tez başlayın](#-quraşdırma) · [🧠 Yaddaş və RAG](#-yaddaş--rag) · [🤖 Agent Sistemi](#-agent-və-çox-addımlı-diaqnostika) · [✨ Alətlər](#-alətlər-və-bacarıqlar-60-tool) · [🤝 Töhfə](#-töhfə)
 
 </div>
 
@@ -31,160 +32,108 @@
 
 ## 📖 Layihə haqqında
 
-**J.A.R.V.I.S. on Android** — Android 9+ cihazlar üçün hazırlanmış, **ROOT tələb etməyən**, AI-dəstəkli şəxsi asistan və cihaz idarəetmə sistemidir. 
+**J.A.R.V.I.S. on Android** — Android 9+ cihazlar üçün hazırlanmış, **ROOT tələb etməyən**, təbii Azərbaycan dilini tam başa düşən və cihazı real idarə edən **Personal AI Agent** sistemidir.
 
-Layihə **offline-first** prinsipinə əsaslanır:
-- Deterministik və SLM əsaslı Azərbaycan dilində əmr emalı internet olmadan işləyir.
-- **60-dan çox sistem aləti (Tools)** ilə cihazın hər bir funksiyası real olaraq idarə edilir.
-- Heç bir saxta və ya simulyasiya edilmiş cavab yoxdur — hər bir əmr real Android API nəticəsinə əsaslanır.
+JARVIS sadəcə bir əmr icraçısı deyil:
+- **Lokal Yaddaş (Memory)** — Sizin haqqınızda faktları, seçimləri və tapşırıqları Room DB-də təhlükəsiz saxlayır.
+- **On-Device RAG** — Daxili Android bələdçisi, JARVIS sənədləri və istifadəçi qeydləri üzrə ultra-sürətli (<1ms) BM25 axtarışı edir.
+- **Agentik Mühərrik (PLAN → OBSERVE → ACT → VERIFY → RESPOND)** — Mürəkkəb diaqnostika və çox-addımlı əmrləri analiz edərək icra edir.
+- **Kontekst İdarəsi (Multi-Turn Context)** — Əvvəlki dialoq mövzusunu yadda saxlayır və cümlə ardıcıllığını başa düşür.
+- **Avtomatlaşdırma və İş Axınları (Workflows)** — Tətikləyici (Trigger) və şərtlər (Conditions) əsasında tapşırıqları cədvəlləşdirir.
 
-> 💡 **"Salam JARVIS, zəngli saat qur sabah 7-yə və musiqini saxla"** — cihazınızı tam idarə edin.
+> 💡 **"Bunu yadda saxla: Ev ünvanım Nizami küçəsidir"** → **"Yaddaşımda nə var?"** → faktlarınızı xatırlayır.  
+> 💡 **"Telefonum niyə yavaşdır?"** → 5 addımlı avtonom sistem analizi aparır və nəticəni izah edir.
+
+---
+
+## 🧠 Yaddaş & RAG
+
+### 1. Lokal Yaddaş (Room SQLite)
+- **Faktlar:** `"Bunu yadda saxla: [fakt]"`, `"Bunu unut: [fakt]"`, `"Yaddaşımda nə var?"`.
+- **Seçimlər (Preferences):** İstifadəçi ayarları və tərcihləri.
+- **Tapşırıq İzlənməsi:** `PENDING` → `RUNNING` → `WAITING` → `COMPLETED` / `FAILED` / `CANCELLED`.
+- **Cihaz Vəziyyəti:** RAM, Batareya və Yaddaş vəziyyətinin vaxtaşırı snapshotları.
+- **Məxfilik (Privacy):** Bütün yaddaş 100% cihazın özündə saxlanılır, heç bir şəxsi məlumat buluda göndərilmir.
+
+### 2. On-Device RAG Engine (Lightweight Retrieval)
+- **Mənbələr:** Android kömək bazası, JARVIS sənədləri, istifadəçi qeydləri və idxal olunmuş sənədlər.
+- **Alqoritm:** 4GB RAM cihazlar üçün optimallaşdırılmış, sıfır gecikməli BM25 / TF-IDF token axtarış mexanizmi.
+- **Sorğu Axını:**
+  ```
+  Sorğu → Tokenizer → BM25 İndeksi → Ən Uyğun Parçalar → Lokal Cavab
+  ```
+
+---
+
+## 🤖 Agent və Çox-Addımlı Diaqnostika
+
+JARVIS mürəkkəb və ya diaqnostik sorğularda avtomatik olaraq agent rejiminə keçir:
+
+```
+    [ İSTİFADƏÇİ: "Telefonumu yoxla və problem varsa de" ]
+                         ↓
+               [ 1. PLAN (Planlaşdır) ]
+    1. GET_RAM → 2. CPU_STATUS → 3. GET_STORAGE → 4. BATTERY_STATUS → 5. NETWORK_STATUS
+                         ↓
+                 [ 2. ACT (İcra et) ]
+             Bütün alətlər ardıcıl işə salınır
+                         ↓
+              [ 3. OBSERVE (Müşahidə et) ]
+           Nəticələr və telemetriya toplanır
+                         ↓
+        [ 4. SELF-CORRECTION (Özünü düzəltmə) ]
+   Əgər alət xəta verərsə → alternativ tənzimləmə çağırılır
+                         ↓
+               [ 5. VERIFY (Yoxla) ]
+        RAM > 85%? Batareya > 42°C? Yaddaş < 2GB?
+                         ↓
+              [ 6. RESPOND (Cavabla) ]
+   "Sistem yoxlanışı: RAM 45%, Batareya 31°C (normal), Boş yer 14 GB."
+```
+
+---
+
+## 🔄 Çox-Dialoqlu Kontekst (Multi-Turn Context)
+
+JARVIS ardıcıl verilən əmrlərdə mövzunu və obyektləri itirmir:
+
+- **İstifadəçi:** `"Wi-Fi-ni aç"`
+- **JARVIS:** `"Wi-Fi aktivdir."`
+- **İstifadəçi:** `"Yaxşı, indi vəziyyətinə bax"`  
+  *(JARVIS başa düşür ki, söhbət Wi-Fi-dan gedir və `WIFI_STATUS` icra edir)*
+- **İstifadəçi:** `"Parametrlərini aç"`  
+  *(JARVIS `WIFI_SETTINGS` açır)*
+
+---
+
+## ⏰ Avtomatlaşdırma və Cədvəlləşdirici (Workflows & Scheduler)
+
+- **İş Axınları (Workflow Engine):**
+  - **Tətikləyici (Trigger):** Vaxt, Batareya faizi, Şəbəkə bağlantısı.
+  - **Şərt (Condition):** `BatteryAbove(80%)`, `WifiConnected(true)`.
+  - **Hərəkət (Action):** Alət icrası, Bildiriş göndərmə və ya Səsləndirmə.
+- **Android Uyğun Cədvəlləşdirmə:** `AlarmManager` və `WorkManager` vasitəsilə batareyanı tükətmədən və Doze rejimini pozmadan işləyir.
 
 ---
 
 ## ✨ Alətlər və Bacarıqlar (60+ Tool)
 
-JARVIS 17 fərqli kateqoriya üzrə 60-dan çox sistem və tətbiq alətinə malikdir:
-
-### 1. ⚙️ SYSTEM
-- `LOCK_SCREEN` — Cihaz ekranını kilidləyir (HIGH risk)
-- `SCREEN_CONTROL` — Parlaqlığı artırır, azaldır və ya avtomatik rejimə keçirir
-- `OPEN_HOME` — Ana ekrana qayıdır
-- `OPEN_RECENTS` — Son açılmış tətbiqlər panelini açır
-- `OPEN_NOTIFICATIONS` — Bildirişlər panelini aşağı çəkir
-- `OPEN_QUICK_SETTINGS` — Sürətli parametrlər panelini açır
-- `OPEN_SETTINGS` — Sistem parametrləri səhifəsini açır
-
-### 2. 📱 APPS
-- `OPEN_APP` — İstənilən quraşdırılmış tətbiqi ad ilə açır
-- `LIST_APPS` — Quraşdırılmış tətbiqləri axtarır və siyahıya alır
-- `APP_INFO` — Tətbiqin versiyası, paketi və ölçüsü məlumatını verir
-- `OPEN_APP_SETTINGS` — Tətbiqin sistem parametrlərini açır
-- `REQUEST_APP_PERMISSION` — İcazələr parametrlərini açır
-- `OPEN_PLAY_STORE` — Google Play Store-u və ya tətbiq axtarışını açır
-
-### 3. 📁 FILES
-- `STORAGE_INFO` — Daxili yaddaşın ümumi, boş və dolu həcmini göstərir
-- `SEARCH_FILES` — MediaStore vasitəsilə fayl axtarır
-- `OPEN_FILE` — Faylı uyğun tətbiqlə açır
-- `SHARE_FILE` — FileProvider ilə faylı paylaşır
-- `COPY_FILE` — Faylı başqa qovluğa kopyalayır
-- `MOVE_FILE` — Faylı köçürür
-- `RENAME_FILE` — Faylın adını dəyişdirir
-- `DELETE_FILE` — Faylı silir (HIGH risk təsdiq tələb edir)
-- `CREATE_FOLDER` — Yeni qovluq yaradır
-
-### 4. 🔋 BATTERY
-- `BATTERY_STATUS` — Batareya faizi, şarj vəziyyəti və temperatur
-- `BATTERY_TEMPERATURE` — Batareyanın cari temperaturu (°C)
-- `CHARGING_STATUS` — Şarj olub-olmadığını bildirir
-- `BATTERY_SAVER_STATUS` — Qənaət rejiminin vəziyyətini yoxlayır
-- `OPEN_BATTERY_SETTINGS` — Batareya parametrlərini açır
-
-### 5. ⚡ PERFORMANCE
-- `GET_RAM` — RAM istifadəsini canlı göstərir
-- `CPU_STATUS` — `/proc/stat` oxuyaraq prosessor istifadəsini və çekirdək sayını bildirir
-- `GET_STORAGE` — Daxili disk tutumunu yoxlayır
-- `DEVICE_INFO` — Cihaz modeli, istehsalçı, Android versiyası və təhlükəsizlik yamağı
-
-### 6. 🌐 NETWORK
-- `WIFI_STATUS` — Wi-Fi bağlantısı və SSID vəziyyəti
-- `WIFI_SETTINGS` — Wi-Fi tənzimləmələri səhifəsini açır (Android 10+ məhdudiyyətinə uyğun)
-- `NETWORK_STATUS` — İnternet bağlantısının ümumi statusu (Wi-Fi / Mobil)
-- `IP_INFO` — Cihazın yerli IPv4 ünvanını bildirir
-- `BLUETOOTH_STATUS` — Bluetooth vəziyyəti və cütləşmiş cihazlar
-- `BLUETOOTH_SETTINGS` — Bluetooth tənzimləmələri
-- `MOBILE_NETWORK_SETTINGS` — Mobil şəbəkə və rouminq parametrləri
-
-### 7. 🔊 AUDIO
-- `GET_VOLUME` — Media və zəng səsi səviyyələrini göstərir
-- `SET_VOLUME` — Səsi artırır, azaldır və ya faizlə təyin edir
-- `MUTE` — Cihazın səsini tam kəsir
-- `UNMUTE` — Cihazın səsini bərpa edir
-- `MEDIA_PLAY` — Musiqini başladır
-- `MEDIA_PAUSE` — Musiqini dayandırır
-- `MEDIA_NEXT` — Növbəti parçaya keçir
-- `MEDIA_PREVIOUS` — Əvvəlki parçaya qayıdır
-
-### 8. 🔔 NOTIFICATIONS
-- `READ_NOTIFICATIONS` — Son bildirişləri oxuyur
-- `LIST_NOTIFICATIONS` — Aktiv bildirişləri siyahıya alır
-- `REMOVE_NOTIFICATION` — Bildirişi silir
-- `NOTIFICATION_STATUS` — Bildiriş dinləyicisi xidmətinin statusunu göstərir
-
-### 9. 📷 CAMERA
-- `OPEN_CAMERA` — Kamera tətbiqini açır
-- `TAKE_PHOTO` — Kamera ilə şəkil çəkir
-- `RECORD_VIDEO` — Kameranı video yazma rejimində açır
-- `TORCH` — Fənəri yandırır və ya söndürür
-
-### 10. 👤 CONTACTS
-- `SEARCH_CONTACT` — Ad və nömrə ilə kontakt axtarır
-- `CREATE_CONTACT` — Yeni kontakt yaratmaq üçün forma açır
-- `OPEN_CONTACTS` — Kontaktlar kitabçasını açır
-
-### 11. 📞 CALL
-- `DIAL_NUMBER` — Nömrəni telefon yığıcısına ötürür
-- `CALL_CONTACT` — Kontakta birbaşa zəng edir (CALL_PHONE icazəsi ilə)
-- `OPEN_CALL_LOG` — Zəng tarixçəsini açır
-
-### 12. 💬 SMS
-- `OPEN_MESSAGES` — Mesajlaşma tətbiqini açır
-- `COMPOSE_SMS` — Alıcı nömrəsi və mətni ilə SMS ekranını açır
-
-### 13. 📍 LOCATION
-- `GET_LOCATION` — Son məlum GPS və şəbəkə koordinatlarını alır
-- `OPEN_LOCATION_SETTINGS` — Məkan parametrlərini açır
-- `OPEN_MAP` — Google Maps-də axtarış və ya ünvan açır
-
-### 14. 🎙️ VOICE
-- `START_LISTENING` — Səsli əmr dinləməsini başladır
-- `STOP_LISTENING` — Dinləməni dayandırır
-- `SPEAK` — Mətni TTS vasitəsilə səsləndirir
-
-### 15. ⏰ ALARM
-- `CREATE_ALARM` — Göstərilən saata zəngli saat qurur
-- `LIST_ALARMS` — Zəngli saatlar siyahısını açır
-- `DELETE_ALARM` — Zəngli saatı dayandırır və ya ləğv edir
-
-### 16. 📅 CALENDAR & REMINDERS
-- `CREATE_EVENT` — Təqvimdə yeni görüş/hadisə yaradır
-- `LIST_EVENTS` — Qarşıdakı təqvim hadisələrini göstərir
-- `DELETE_EVENT` — Təqvim hadisəsini idarə edir
-- `CREATE_REMINDER` — Xatırlatma siqnalı qurur
-- `LIST_REMINDERS` — Xatırlatmaları göstərir
-- `DELETE_REMINDER` — Xatırlatmanı ləğv edir
-
-### 17. 🌐 BROWSER & ♿ ACCESSIBILITY
-- `OPEN_URL` — Veb səhifə açır
-- `WEB_SEARCH` — İnternetdə axtarış aparır
-- `OPEN_BROWSER` — Brauzeri açır
-- `CLICK_UI_ELEMENT` — Ekranda görünən düyməyə basır (Əlçatımlılıq Xidməti ilə)
-- `SCROLL` — Ekranı yuxarı/aşağı sürüşdürür
-- `READ_VISIBLE_TEXT` — Ekrandakı bütün görünən mətnləri oxuyur
-- `GO_BACK` — Sistem geri düyməsini icra edir
-- `GO_HOME` — Ana ekrana keçir
-- `INTERACT_WITH_SUPPORTED_UI` — Kompleks UI qarşılıqlı əlaqəsi
-
----
-
-## 🔒 Təhlükəsizlik & Risk İdarəetməsi
-
-Hər bir alət `RiskLevel` və deklarativ icazə tələbləri ilə qorunur:
-
-| Risk Səviyyəsi | Təsvir | Təsdiq Tələbi | Nümunələr |
-|----------------|--------|---------------|-----------|
-| **LOW** | Təhlükəsiz oxu/məlumat əməliyyatları | Xeyr | Batareya, RAM, Saat, Tətbiq siyahısı, Veb axtarış |
-| **MEDIUM** | Cihaz tənzimləməsi və ya forma açma | Xeyr | Səs səviyyəsi, Fənər, Brauzer açma, SMS forması |
-| **HIGH** | Cihaz vəziyyətini dəyişən əməliyyatlar | **Bəli (Dialoq)** | Zəng etmə, Fayl silmə, Alarm qurma, Şəkil çəkmə |
-| **CRITICAL** | Təhlükəsizlik və ya kritik sistem əmrləri | **Bəli (Xüsusi Təsdiq)** | Ekran kilidi, Arbitrary shell cəhdlərinin bloklanması |
-
-### Capability Detection (Pre-flight Yoxlama)
-JARVIS hər hansı əmri icra etməzdən əvvəl `CapabilityDetector` vasitəsilə yoxlayır:
-- `SUPPORTED` — Tam dəstəklənir və icazələr verilib.
-- `PERMISSION_REQUIRED` — Tələb olunan icazələr istifadəçidən istənilir.
-- `SPECIAL_ACCESS_REQUIRED` — Əlçatımlılıq və ya Bildiriş Dinləyicisi aktivləşdirilməlidir.
-- `UNSUPPORTED` — Android versiyası və ya hardware tərəfindən dəstəklənmir (məsələn, Android 10+ birbaşa Wi-Fi söndürmə əvəzinə parametrləri açır və istifadəçiyə izah edir).
+| Kateqoriya | Alətlər |
+|---|---|
+| **SYSTEM** | `LOCK_SCREEN`, `SCREEN_CONTROL`, `OPEN_HOME`, `OPEN_RECENTS`, `OPEN_NOTIFICATIONS`, `OPEN_QUICK_SETTINGS`, `OPEN_SETTINGS` |
+| **APPS** | `OPEN_APP`, `LIST_APPS`, `APP_INFO`, `OPEN_APP_SETTINGS`, `REQUEST_APP_PERMISSION`, `OPEN_PLAY_STORE` |
+| **FILES** | `STORAGE_INFO`, `SEARCH_FILES`, `OPEN_FILE`, `SHARE_FILE`, `COPY_FILE`, `MOVE_FILE`, `RENAME_FILE`, `DELETE_FILE`, `CREATE_FOLDER` |
+| **BATTERY** | `BATTERY_STATUS`, `BATTERY_TEMPERATURE`, `CHARGING_STATUS`, `BATTERY_SAVER_STATUS`, `OPEN_BATTERY_SETTINGS` |
+| **PERFORMANCE** | `GET_RAM`, `CPU_STATUS`, `GET_STORAGE`, `DEVICE_INFO` |
+| **NETWORK** | `WIFI_STATUS`, `WIFI_SETTINGS`, `NETWORK_STATUS`, `IP_INFO`, `BLUETOOTH_STATUS`, `BLUETOOTH_SETTINGS`, `MOBILE_NETWORK_SETTINGS` |
+| **AUDIO** | `GET_VOLUME`, `SET_VOLUME`, `MUTE`, `UNMUTE`, `MEDIA_PLAY`, `MEDIA_PAUSE`, `MEDIA_NEXT`, `MEDIA_PREVIOUS` |
+| **NOTIFICATIONS** | `READ_NOTIFICATIONS`, `LIST_NOTIFICATIONS`, `REMOVE_NOTIFICATION`, `NOTIFICATION_STATUS` |
+| **CAMERA** | `OPEN_CAMERA`, `TAKE_PHOTO`, `RECORD_VIDEO`, `TORCH` |
+| **CONTACTS & CALL** | `SEARCH_CONTACT`, `CREATE_CONTACT`, `OPEN_CONTACTS`, `DIAL_NUMBER`, `CALL_CONTACT`, `OPEN_CALL_LOG` |
+| **SMS & LOCATION** | `OPEN_MESSAGES`, `COMPOSE_SMS`, `GET_LOCATION`, `OPEN_LOCATION_SETTINGS`, `OPEN_MAP` |
+| **VOICE & ALARM** | `START_LISTENING`, `STOP_LISTENING`, `SPEAK`, `CREATE_ALARM`, `LIST_ALARMS`, `DELETE_ALARM`, `CREATE_REMINDER` |
+| **CALENDAR & BROWSER** | `CREATE_EVENT`, `LIST_EVENTS`, `DELETE_EVENT`, `OPEN_URL`, `WEB_SEARCH`, `OPEN_BROWSER` |
+| **ACCESSIBILITY** | `CLICK_UI_ELEMENT`, `SCROLL`, `READ_VISIBLE_TEXT`, `GO_BACK`, `GO_HOME`, `INTERACT_WITH_SUPPORTED_UI` |
 
 ---
 
@@ -192,97 +141,55 @@ JARVIS hər hansı əmri icra etməzdən əvvəl `CapabilityDetector` vasitəsil
 
 ```
 J.A.R.V.I.S. on Android
-├── presentation/              # Jetpack Compose UI
-│   ├── components/            # Arc Reactor Orb, HUD Card, Timeline, Quick Actions
-│   ├── screens/               # Əsas ekran, Settings Sheet
-│   └── JarvisViewModel.kt     # UI vəziyyət idarəetməsi
+├── agent/                     # Avtonom Agent Mühərriki
+│   ├── AgentModels.kt         # Plan, Addım, Müşahidə və Yoxlama modelləri
+│   ├── AgentPlanner.kt        # Çox-addımlı planlaşdırıcı
+│   └── AgentExecutor.kt       # Plan icraçısı və özünü düzəltmə
 │
-├── ai/                        # Zəka və NLP qatı
-│   ├── matcher/               # DeterministicIntentMatcher (60+ intent regex)
-│   ├── normalizer/            # AzerbaijaniTextNormalizer
-│   └── provider/              # GeminiProvider, LocalSLMProvider, FallbackProvider
+├── rag/                       # Lokal RAG Axtarış Qatı
+│   ├── KnowledgeModels.kt     # Bilik parçaları (KnowledgeChunk)
+│   ├── LightweightRetriever.kt# BM25 token əsaslı lokal axtarış
+│   └── RAGEngine.kt           # Dinamik fakt və sənəd axtarışı
 │
-├── services/                  # Android Sistem Xidmətləri
-│   ├── JarvisAccessibilityService.kt          # UI klik, scroll, ekran oxuma
-│   └── JarvisNotificationListenerService.kt   # Real-time bildiriş axını
+├── context/                   # Multi-turn Dialoq Konteksti
+│   └── ConversationContextManager.kt # Mövzu və obyekt izləmə
 │
-├── tools/                     # 60+ Cihaz Aləti
-│   ├── Tool.kt                # Baza interfeys
-│   ├── ToolRegistry.kt        # Bütün alətlərin qeydiyyat mərkəzi
-│   ├── CapabilityDetector.kt  # Pre-flight bacarıq və icazə detektoru
-│   └── impl/                  # 17 kateqoriya üzrə paketlər:
-│       ├── system/
-│       ├── apps/
-│       ├── files/
-│       ├── battery/
-│       ├── performance/
-│       ├── network/
-│       ├── audio/
-│       ├── notifications/
-│       ├── camera/
-│       ├── contacts/
-│       ├── call/
-│       ├── sms/
-│       ├── location/
-│       ├── voice/
-│       ├── alarm/
-│       ├── reminder/
-│       ├── calendar/
-│       ├── browser/
-│       └── accessibility/
+├── automation/workflow/       # Avtomatlaşdırma & İş Axınları
+│   ├── WorkflowModels.kt      # Tətikləyici, Şərt və Hərəkət
+│   └── WorkflowEngine.kt      # İş axını qiymətləndiricisi
 │
-├── automation/                # CommandPipeline (10 mərhələli icra boru kəməri)
-├── security/                  # RiskManager & CommandSanitizer
-├── permissions/               # PermissionManager (deklarativ icazə idarəsi)
-├── memory/                    # MemoryManager (Room DB əsaslı kontekst)
-└── voice/                     # TextToSpeech & SpeechRecognizer köməkçiləri
+├── scheduler/                 # Android Cədvəlləşdirici
+│   └── JarvisTaskScheduler.kt # AlarmManager və Doze uyğun icra
+│
+├── memory/                    # Yaddaş Meneceri
+│   └── MemoryManager.kt       # Fakt, Seçim, Tapşırıq və Snapshot API
+│
+├── data/                      # Room SQLite Baza Qatı
+│   ├── JarvisDatabase.kt      # Version 2 Baza
+│   ├── dao/Daos.kt            # Conversation, Memory, Preference, Task, DeviceState, KnowledgeDoc DAO-lar
+│   └── entity/Entities.kt     # Entity modelləri
+│
+├── tools/                     # 60+ Sistem və Cihaz Aləti
+├── permissions/               # Deklarativ İcazə Meneceri
+├── security/                  # RiskManager (LOW, MEDIUM, HIGH, CRITICAL)
+├── services/                  # Accessibility & NotificationListener Xidmətləri
+└── presentation/              # Jetpack Compose UI (Arc Reactor, HUD, Timeline)
 ```
 
 ---
 
 ## 🚀 Quraşdırma
 
-### 1. Layihəni klonlayın
-
 ```bash
 git clone https://github.com/n4dlr/J.A.R.V.I.S.on.Android.git
 cd J.A.R.V.I.S.on.Android
-```
-
-### 2. API açarını konfiqurasiya edin
-
-```bash
 cp .env.example .env
 ```
 
-`.env` faylını açın və Gemini API açarınızı daxil edin:
-
-```env
-GEMINI_API_KEY=your_actual_gemini_api_key_here
+Android Studio-da layihəni açın və işə salın:
 ```
-
-### 3. Android Studio-da açın və işə salın
-
+Android Studio → Open → J.A.R.V.I.S.on.Android → Sync Project → Run
 ```
-Android Studio → Open → J.A.R.V.I.S.on.Android → Sync Project with Gradle Files → Run
-```
-
----
-
-## 🎮 Nümunə Əmrlər
-
-| Əmr | Kateqoriya | İcra |
-|-----|------------|------|
-| `"Batareyanın temperaturu nə qədərdir?"` | BATTERY | Batareya dərəcəsini göstərir |
-| `"Telefon şarj olurmu?"` | BATTERY | Şarj mənbəyi və vəziyyətini bildirir |
-| `"CPU vəziyyətinə bax"` | PERFORMANCE | Prosessor istifadəsini və çekirdəkləri bildirir |
-| `"Musiqini saxla"` | AUDIO | Aktiv media oynatıcını dayandırır |
-| `"Səsi kəs"` | AUDIO | Cihazı səssiz rejimə keçirir |
-| `"Saata 8 üçün zəngli saat qur"` | ALARM | Zəngli saat yaradır (Təsdiq ilə) |
-| `"Google-da axtar süni intellekt"` | BROWSER | Google axtarışını açır |
-| `"Ekrandakı mətni oxu"` | ACCESSIBILITY | Görünən mətni oxuyur və göstərir |
-| `"Son zəngləri göstər"` | CALL | Zəng tarixçəsini açır |
-| `"Fayl axtar foto"` | FILES | MediaStore vasitəsilə faylları tapır |
 
 ---
 
