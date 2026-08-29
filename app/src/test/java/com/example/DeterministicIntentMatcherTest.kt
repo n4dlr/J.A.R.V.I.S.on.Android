@@ -74,10 +74,48 @@ class DeterministicIntentMatcherTest {
     }
 
     @Test
-    fun `match open app command`() {
-        val appIntent = matcher.match("YouTube aç")
-        assertNotNull(appIntent)
-        assertEquals("OPEN_APP", appIntent?.intentId)
-        assertEquals("youtube", appIntent?.arguments?.get("app_name"))
+    fun `match open app command and inflections`() {
+        val appIntent1 = matcher.match("YouTube aç")
+        assertNotNull(appIntent1)
+        assertEquals("OPEN_APP", appIntent1?.intentId)
+        assertEquals("youtube", appIntent1?.arguments?.get("app_name"))
+
+        val appIntent2 = matcher.match("WhatsApp-ı aç")
+        assertNotNull(appIntent2)
+        assertEquals("OPEN_APP", appIntent2?.intentId)
+        assertEquals("whatsapp", appIntent2?.arguments?.get("app_name"))
+    }
+
+    @Test
+    fun `match system settings and connectivity commands`() {
+        val wifiIntent = matcher.match("WiFi parametrlərini aç")
+        assertNotNull(wifiIntent)
+        assertEquals("WIFI_SETTINGS", wifiIntent?.intentId)
+
+        val btIntent = matcher.match("Bluetooth-u aç")
+        assertNotNull(btIntent)
+        assertEquals("BLUETOOTH_SETTINGS", btIntent?.intentId)
+    }
+
+    @Test
+    fun `match media playback controls`() {
+        val pauseIntent = matcher.match("Media-nı dayandır")
+        assertNotNull(pauseIntent)
+        assertEquals("MEDIA_PAUSE", pauseIntent?.intentId)
+
+        val nextIntent = matcher.match("Sonrakı mahnıya keç")
+        assertNotNull(nextIntent)
+        assertEquals("MEDIA_NEXT", nextIntent?.intentId)
+    }
+
+    @Test
+    fun `match accessibility and screen reading commands`() {
+        val readScreenIntent = matcher.match("Ekrandakı mətni oxu")
+        assertNotNull(readScreenIntent)
+        assertEquals("READ_VISIBLE_TEXT", readScreenIntent?.intentId)
+
+        val notifIntent = matcher.match("Son bildirişi oxu")
+        assertNotNull(notifIntent)
+        assertEquals("READ_NOTIFICATIONS", notifIntent?.intentId)
     }
 }

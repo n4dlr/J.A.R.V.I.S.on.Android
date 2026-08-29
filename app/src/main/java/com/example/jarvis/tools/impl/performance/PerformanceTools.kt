@@ -70,17 +70,23 @@ class DeviceInfoTool : Tool {
 
     override suspend fun execute(context: Context, params: Map<String, String>): ToolResult {
         return try {
-            val manufacturer = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
-            val model        = Build.MODEL
-            val androidVer   = Build.VERSION.RELEASE
-            val sdk          = Build.VERSION.SDK_INT
-            val securityPatch = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                Build.VERSION.SECURITY_PATCH else "bilinmir"
+            val manufacturer = try { Build.MANUFACTURER?.ifBlank { "Android" }?.replaceFirstChar { it.uppercase() } ?: "Android" } catch (_: Throwable) { "Android" }
+            val model        = try { Build.MODEL?.ifBlank { "Device" } ?: "Device" } catch (_: Throwable) { "Device" }
+            val androidVer   = try { Build.VERSION.RELEASE?.ifBlank { "14" } ?: "14" } catch (_: Throwable) { "14" }
+            val sdk          = try { Build.VERSION.SDK_INT } catch (_: Throwable) { 34 }
+            val securityPatch = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    Build.VERSION.SECURITY_PATCH ?: "bilinmir" else "bilinmir"
+            } catch (_: Throwable) { "bilinmir" }
 
-            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-            val memInfo = ActivityManager.MemoryInfo()
-            am.getMemoryInfo(memInfo)
-            val totalRamGb = "%.1f".format(memInfo.totalMem / 1_073_741_824.0)
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val totalRamGb = if (am != null) {
+                val memInfo = ActivityManager.MemoryInfo()
+                am.getMemoryInfo(memInfo)
+                "%.1f".format(memInfo.totalMem / 1_073_741_824.0)
+            } else {
+                "%.1f".format(Runtime.getRuntime().maxMemory() / (1024.0 * 1024.0 * 1024.0))
+            }
 
             val msg = "$manufacturer $model — Android $androidVer (API $sdk), " +
                     "RAM: ${totalRamGb} GB, Təhlükəsizlik yamağı: $securityPatch."

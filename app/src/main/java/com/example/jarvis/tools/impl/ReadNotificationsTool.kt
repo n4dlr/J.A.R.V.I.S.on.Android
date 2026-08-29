@@ -3,6 +3,7 @@ package com.example.jarvis.tools.impl
 import android.content.Context
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import com.example.jarvis.services.JarvisNotificationListenerService
 import com.example.jarvis.domain.model.RiskLevel
 import com.example.jarvis.domain.model.ToolParameter
 import com.example.jarvis.domain.model.ToolResult
@@ -27,17 +28,30 @@ class ReadNotificationsTool : Tool {
                 ToolResult.permissionRequired(
                     toolId = id,
                     permissions = listOf("Notification Listener Access"),
-                    message = "Bildirişləri birbaşa oxumaq üçün sistemdə 'Bildiriş Girişi' icazəsi aktivləşdirilməlidir."
+                    message = "Bildirişləri oxumaq üçün sistem parametrlərində JARVIS üçün 'Bildiriş Girişi' icazəsi aktivləşdirilməlidir."
                 )
             } else {
-                ToolResult.success(
-                    toolId = id,
-                    message = "Bildiriş xidməti aktivdir. Hazırda yeni kritik bildiriş yoxdur.",
-                    data = mapOf("hasAccess" to true)
-                )
+                val notifs = JarvisNotificationListenerService.StateHolder.notifications
+                if (notifs.isEmpty()) {
+                    ToolResult.success(
+                        toolId = id,
+                        message = "Hazırda heç bir aktiv bildiriş yoxdur.",
+                        data = mapOf("count" to 0)
+                    )
+                } else {
+                    val preview = notifs.take(5).mapIndexed { i, n ->
+                        val app = if (n.appLabel.isNotEmpty()) "[${n.appLabel}] " else ""
+                        "${i + 1}. $app${n.title}${if (n.text.isNotEmpty()) ": ${n.text}" else ""}"
+                    }.joinToString("\n")
+                    ToolResult.success(
+                        toolId = id,
+                        message = "${notifs.size} aktiv bildiriş aşkar edildi:\n$preview",
+                        data = mapOf("count" to notifs.size, "notifications" to notifs.map { it.title })
+                    )
+                }
             }
         } catch (e: Exception) {
-            ToolResult.failed(id, "Bildirişlər yoxlanılarkən xəta: ${e.message}")
+            ToolResult.failed(id, "Bildirişlər oxunarkən xəta: ${e.message}")
         }
     }
 }

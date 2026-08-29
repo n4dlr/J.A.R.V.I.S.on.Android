@@ -3,6 +3,7 @@ package com.example.jarvis.automation
 import android.content.Context
 import com.example.jarvis.agent.AgentExecutor
 import com.example.jarvis.agent.AgentPlanner
+import com.example.jarvis.ai.matcher.DeterministicIntentMatcher
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
 import com.example.jarvis.ai.provider.AIProvider
 import com.example.jarvis.context.ConversationContextManager
@@ -72,6 +73,15 @@ class CommandPipeline(
     val securityValidator: ToolSecurityValidator = ToolSecurityValidator(toolRegistry),
     val crashRecoveryManager: CrashRecoveryManager = CrashRecoveryManager()
 ) {
+
+    private val smartModelRouter = SmartModelRouter(
+        commandCache = commandCache,
+        deterministicMatcher = DeterministicIntentMatcher(normalizer),
+        agentPlanner = agentPlanner,
+        localSLMProvider = aiProvider,
+        geminiProvider = aiProvider,
+        normalizer = normalizer
+    )
 
     suspend fun processCommand(rawInput: String, isConfirmed: Boolean = false, isOnline: Boolean = true): PipelineOutput {
         val startTime = System.currentTimeMillis()
@@ -144,8 +154,9 @@ class CommandPipeline(
 
         // 4. SMART MODEL ROUTING & MULTI-TURN CONTEXT RESOLUTION
         val intentStart = System.currentTimeMillis()
+        val routingDecision = smartModelRouter.route(sanitized, isOnline)
         var structuredIntent = contextManager.resolveContextualQuery(normalized)
-            ?: commandCache.get(sanitized)
+            ?: routingDecision.structuredIntent
             ?: aiProvider.classifyIntent(sanitized)
 
         performanceTracker.recordIntentLatency(System.currentTimeMillis() - intentStart)

@@ -111,7 +111,12 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         // Observe voice recognizer states
         viewModelScope.launch {
             voiceHelper.isListening.collect { listening ->
-                _uiState.update { it.copy(isListening = listening) }
+                _uiState.update { it.copy(isListening = listening, recognizedSpeechPreview = if (!listening) "" else it.recognizedSpeechPreview) }
+            }
+        }
+        viewModelScope.launch {
+            voiceHelper.partialText.collect { partial ->
+                _uiState.update { it.copy(recognizedSpeechPreview = partial) }
             }
         }
         viewModelScope.launch {

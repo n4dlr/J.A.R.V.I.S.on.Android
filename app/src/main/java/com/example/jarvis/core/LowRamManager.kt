@@ -23,9 +23,13 @@ data class MemoryTelemetry(
     val totalStorageMb: Long
 )
 
-class LowRamManager(private val context: Context) : ComponentCallbacks2 {
+class LowRamManager(private val context: Context? = null) : ComponentCallbacks2 {
 
-    private val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    private val activityManager: ActivityManager? = try {
+        context?.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+    } catch (_: Throwable) {
+        null
+    }
 
     private val _telemetry = MutableStateFlow(fetchCurrentMemoryInfo())
     val telemetry: StateFlow<MemoryTelemetry> = _telemetry.asStateFlow()
@@ -34,7 +38,9 @@ class LowRamManager(private val context: Context) : ComponentCallbacks2 {
     val isMemoryPressureHigh: StateFlow<Boolean> = _isMemoryPressureHigh.asStateFlow()
 
     init {
-        context.registerComponentCallbacks(this)
+        try {
+            context?.registerComponentCallbacks(this)
+        } catch (_: Throwable) {}
     }
 
     fun refreshTelemetry(): MemoryTelemetry {
@@ -44,7 +50,7 @@ class LowRamManager(private val context: Context) : ComponentCallbacks2 {
     }
 
     fun isLowRamEnvironment(): Boolean {
-        return activityManager.isLowRamDevice || (fetchCurrentMemoryInfo().totalRamMb <= 4096)
+        return activityManager?.isLowRamDevice ?: (fetchCurrentMemoryInfo().totalRamMb <= 4096)
     }
 
     fun getMaxContextWindowSize(): Int {
@@ -62,8 +68,21 @@ class LowRamManager(private val context: Context) : ComponentCallbacks2 {
     }
 
     private fun fetchCurrentMemoryInfo(): MemoryTelemetry {
+        val am = activityManager
+        if (am == null) {
+            return MemoryTelemetry(
+                totalRamMb = 8192,
+                availRamMb = 4096,
+                usedRamMb = 4096,
+                ramUsagePercent = 50,
+                isLowRamDevice = false,
+                isLowMemoryPressure = false,
+                availableStorageMb = 64000,
+                totalStorageMb = 128000
+            )
+        }
         val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
+        am.getMemoryInfo(memoryInfo)
 
         val totalRamMb = memoryInfo.totalMem / (1024 * 1024)
         val availRamMb = memoryInfo.availMem / (1024 * 1024)
@@ -119,7 +138,7 @@ class LowRamManager(private val context: Context) : ComponentCallbacks2 {
 
     fun unregister() {
         try {
-            context.unregisterComponentCallbacks(this)
+            context?.unregisterComponentCallbacks(this)
         } catch (_: Exception) {}
     }
 }

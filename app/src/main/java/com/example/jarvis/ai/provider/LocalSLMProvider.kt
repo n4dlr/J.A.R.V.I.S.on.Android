@@ -154,6 +154,22 @@ class LocalSLMProvider(
                 else if (normalized.contains("ses")) args["target"] = "sound"
                 else args["target"] = "main"
             }
+            "MEDIA_SEARCH_PLAY" -> {
+                val tokens = normalized.split("\\s+".toRegex()).filter { it.isNotBlank() }
+                val extracted = com.example.jarvis.ai.matcher.AppNameExtractor.extractAppAndQuery(tokens)
+                if (extracted != null) {
+                    args["target_app"] = extracted.first
+                    args["query"] = extracted.second
+                } else {
+                    args["target_app"] = "youtube"
+                    args["query"] = query
+                }
+            }
+            "APP_SEARCH" -> {
+                val q = query.substringAfter("axtar").ifEmpty { query.substringAfter("google") }.trim()
+                args["query"] = q.ifEmpty { query }
+                args["target_app"] = if (normalized.contains("chrome") || normalized.contains("xrom")) "chrome" else "google"
+            }
             "WEB_SEARCH" -> {
                 val q = query.substringAfter("axtar").ifEmpty { query.substringAfter("google") }.trim()
                 args["query"] = q.ifEmpty { query }
@@ -185,16 +201,20 @@ class LocalSLMProvider(
             }
             try {
                 if (!nativeModelReady) {
-                    engine.state.first { it is InferenceEngine.State.Initialized }
-                    engine.loadModel(modelPath!!)
-                    engine.setSystemPrompt("Sən JARVIS adlı Azərbaycan dilli Android köməkçisisən. Qısa, aydın və yalnız Azərbaycan dilində cavab ver.")
-                    nativeModelReady = true
+                    val currentState = engine.state.first { it is InferenceEngine.State.Initialized || it is InferenceEngine.State.Error }
+                    if (currentState is InferenceEngine.State.Initialized) {
+                        engine.loadModel(modelPath!!)
+                        engine.setSystemPrompt("Sən JARVIS adlı Azərbaycan dilli Android köməkçisisən. Qısa, aydın və yalnız Azərbaycan dilində cavab ver.")
+                        nativeModelReady = true
+                    }
                 }
-                val generated = StringBuilder()
-                engine.sendUserPrompt(prompt, 256).collect { generated.append(it) }
-                isModelLoaded = true
-                return JarvisResult.Success(GenerationResponse(generated.toString().trim(), AIProviderType.LOCAL_SLM, true))
-            } catch (_: Exception) {
+                if (nativeModelReady) {
+                    val generated = StringBuilder()
+                    engine.sendUserPrompt(prompt, 256).collect { generated.append(it) }
+                    isModelLoaded = true
+                    return JarvisResult.Success(GenerationResponse(generated.toString().trim(), AIProviderType.LOCAL_SLM, true))
+                }
+            } catch (_: Throwable) {
                 // Fall back to deterministic offline responses if native loading fails.
             }
         }

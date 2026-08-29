@@ -373,9 +373,16 @@ fun JarvisMainScreen(
                             }),
                             decorationBox = { innerTextField ->
                                 if (uiState.currentInputText.isEmpty()) {
+                                    val hintText = if (uiState.recognizedSpeechPreview.isNotBlank()) {
+                                        "🎤 \"${uiState.recognizedSpeechPreview}\""
+                                    } else if (uiState.isListening) {
+                                        "Sizi dinləyirəm..."
+                                    } else {
+                                        "Əmr daxil edin və ya mikrofona toxunun..."
+                                    }
                                     Text(
-                                        text = if (uiState.isListening) "Sizi dinləyirəm..." else "Əmr daxil edin və ya mikrofona toxunun...",
-                                        color = if (uiState.isListening) JarvisCyan else JarvisTextMuted,
+                                        text = hintText,
+                                        color = if (uiState.recognizedSpeechPreview.isNotBlank()) JarvisCyanPrimary else if (uiState.isListening) JarvisCyan else JarvisTextMuted,
                                         fontSize = 12.5.sp
                                     )
                                 }

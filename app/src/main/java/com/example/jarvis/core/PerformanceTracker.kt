@@ -16,14 +16,14 @@ data class PerformanceMetrics(
 
 class PerformanceTracker {
 
-    private var appStartTime: Long = SystemClock.elapsedRealtime()
+    private var appStartTime: Long = try { SystemClock.elapsedRealtime() } catch (_: Throwable) { System.currentTimeMillis() }
     private var isColdStart: Boolean = true
 
     @Volatile
     private var currentMetrics = PerformanceMetrics()
 
     fun recordAppStart() {
-        val now = SystemClock.elapsedRealtime()
+        val now = try { SystemClock.elapsedRealtime() } catch (_: Throwable) { System.currentTimeMillis() }
         val duration = now - appStartTime
         currentMetrics = if (isColdStart) {
             isColdStart = false

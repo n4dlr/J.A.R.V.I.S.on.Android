@@ -72,8 +72,15 @@ class MemoryManager(
     }
 
     suspend fun forgetFact(query: String): Boolean {
-        val deletedCount = repository.deleteFact(query.trim())
-        return deletedCount > 0
+        val trimmed = query.trim()
+        val directDeleted = repository.deleteFact(trimmed)
+        if (directDeleted > 0) return true
+        val matched = repository.searchFacts(trimmed)
+        var count = 0
+        for (f in matched) {
+            count += repository.deleteFact(f.key)
+        }
+        return count > 0
     }
 
     suspend fun getFact(key: String): String? {

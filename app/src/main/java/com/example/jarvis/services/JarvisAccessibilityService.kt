@@ -75,6 +75,37 @@ class JarvisAccessibilityService : AccessibilityService() {
         return clicked
     }
 
+    /** Type [text] into the currently focused or first editable field. */
+    fun typeText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        // First try to find and focus an editable field
+        val editableNode = findFirstEditable(root)
+        if (editableNode != null) {
+            // Focus it
+            editableNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            // Set text via bundle (API 21+)
+            val args = android.os.Bundle()
+            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            val result = editableNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            root.recycle()
+            return result
+        }
+        // Fallback: paste via clipboard simulation
+        root.recycle()
+        return false
+    }
+
+    private fun findFirstEditable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isEditable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findFirstEditable(child)
+            if (found != null) return found
+            child.recycle()
+        }
+        return null
+    }
+
     /** Scroll the first scrollable view in the active window. */
     fun scroll(direction: ScrollDirection): Boolean {
         val root = rootInActiveWindow ?: return false

@@ -137,9 +137,9 @@ internal class InferenceEngineImpl private constructor(
                 _state.value = InferenceEngine.State.Initialized
                 Log.i(TAG, "Native library loaded! System info: \n${systemInfo()}")
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to load native library", e)
-                throw e
+            } catch (e: Throwable) {
+                Log.e(TAG, "Failed to load native library (e.g. host JVM or missing native .so)", e)
+                _state.value = InferenceEngine.State.Error(if (e is Exception) e else Exception(e.message, e))
             }
         }
     }

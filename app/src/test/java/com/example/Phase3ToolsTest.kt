@@ -20,8 +20,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
 class Phase3ToolsTest {
 
     private lateinit var context: Context
@@ -32,7 +30,7 @@ class Phase3ToolsTest {
 
     @Before
     fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
+        context = TestContext()
         registry = ToolRegistry()
         matcher = DeterministicIntentMatcher(AzerbaijaniTextNormalizer())
         riskManager = RiskManager(CommandSanitizer())

@@ -40,6 +40,8 @@ import com.example.jarvis.tools.impl.battery.OpenBatterySettingsTool
 import com.example.jarvis.tools.impl.browser.OpenBrowserTool
 import com.example.jarvis.tools.impl.browser.OpenUrlTool
 import com.example.jarvis.tools.impl.browser.WebSearchTool
+import com.example.jarvis.tools.impl.media.AppSearchTool
+import com.example.jarvis.tools.impl.media.MediaSearchPlayTool
 import com.example.jarvis.tools.impl.calendar.CreateEventTool
 import com.example.jarvis.tools.impl.calendar.DeleteEventTool
 import com.example.jarvis.tools.impl.calendar.ListEventsTool
@@ -216,6 +218,10 @@ class ToolRegistry {
         register(OpenUrlTool())
         register(WebSearchTool())
         register(OpenBrowserTool())
+
+        // --- MEDIA & SEARCH IN APP ---
+        register(MediaSearchPlayTool())
+        register(AppSearchTool())
 
         // --- ACCESSIBILITY ---
         register(ClickUiElementTool())

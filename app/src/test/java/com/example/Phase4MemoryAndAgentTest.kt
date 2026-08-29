@@ -32,13 +32,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
 class Phase4MemoryAndAgentTest {
 
     private lateinit var context: Context
-    private lateinit var database: JarvisDatabase
-    private lateinit var repository: JarvisRepositoryImpl
+    private lateinit var repository: FakeJarvisRepository
     private lateinit var memoryManager: MemoryManager
     private lateinit var lowRamManager: LowRamManager
     private lateinit var toolRegistry: ToolRegistry
@@ -51,12 +48,9 @@ class Phase4MemoryAndAgentTest {
 
     @Before
     fun setUp() {
-        context = ApplicationProvider.getApplicationContext()
-        database = Room.inMemoryDatabaseBuilder(context, JarvisDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        repository = JarvisRepositoryImpl(database)
-        lowRamManager = LowRamManager(context)
+        context = TestContext()
+        repository = FakeJarvisRepository()
+        lowRamManager = LowRamManager()
         memoryManager = MemoryManager(repository, lowRamManager)
         toolRegistry = ToolRegistry()
         retriever = LightweightRetriever()
@@ -65,11 +59,6 @@ class Phase4MemoryAndAgentTest {
         agentExecutor = AgentExecutor(toolRegistry, memoryManager)
         contextManager = ConversationContextManager()
         workflowEngine = WorkflowEngine(toolRegistry, memoryManager)
-    }
-
-    @After
-    fun tearDown() {
-        database.close()
     }
 
     @Test

@@ -27,5 +27,6 @@ data class JarvisUiState(
     val isTtsEnabled: Boolean = false,
     val hasGeminiApiKey: Boolean = false,
     val performanceMetrics: com.example.jarvis.core.PerformanceMetrics? = null,
-    val confirmationProfile: com.example.jarvis.security.ConfirmationProfile = com.example.jarvis.security.ConfirmationProfile.STANDARD
+    val confirmationProfile: com.example.jarvis.security.ConfirmationProfile = com.example.jarvis.security.ConfirmationProfile.STANDARD,
+    val recognizedSpeechPreview: String = ""
 )

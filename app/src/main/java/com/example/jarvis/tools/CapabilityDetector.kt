@@ -39,7 +39,15 @@ class CapabilityDetector(private val context: Context) {
 
         // 2. Runtime permission check
         val missing = requiredPermissions.filter { perm ->
-            ContextCompat.checkSelfPermission(context, perm) != PackageManager.PERMISSION_GRANTED
+            try {
+                ContextCompat.checkSelfPermission(context, perm) != PackageManager.PERMISSION_GRANTED
+            } catch (_: Throwable) {
+                try {
+                    context.checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED
+                } catch (_: Throwable) {
+                    true
+                }
+            }
         }
         if (missing.isNotEmpty()) {
             return CapabilityInfo(

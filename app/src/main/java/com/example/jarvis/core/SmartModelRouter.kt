@@ -47,7 +47,7 @@ class SmartModelRouter(
 
         // 2. FAST COMMAND: Check Deterministic Regex Matcher (< 2ms)
         val deterministic = deterministicMatcher.match(rawQuery)
-        if (deterministic != null && deterministic.confidence == IntentConfidence.EXACT_DETERMINISTIC) {
+        if (deterministic != null && (deterministic.isDeterministic || deterministic.confidence == IntentConfidence.EXACT_DETERMINISTIC || deterministic.confidence == IntentConfidence.HIGH_HEURISTIC)) {
             commandCache.put(rawQuery, deterministic)
             return RoutingDecision(
                 target = RoutingTarget.DETERMINISTIC,

@@ -35,6 +35,8 @@ class AzerbaijaniTextNormalizer {
         "vayfayi" to "wifi",
         "blutuz" to "bluetooth",
         "blutuzu" to "bluetooth",
+        "wi fi" to "wifi",
+        "wi-fi" to "wifi",
         "ayarlar" to "tenzimlemeler",
         "nastroyka" to "tenzimlemeler",
         "nastroykani" to "tenzimlemeler",
