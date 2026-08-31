@@ -2,31 +2,28 @@ package com.example.jarvis.ai.vision
 
 import android.content.Context
 import android.util.Log
+import com.example.jarvis.ai.runtime.ModelHttpDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
- * Manages the download and lifecycle of the on-device Local Vision SLM
- * (SmolVLM-256M / Moondream2 GGUF Q4_K_M ~290 MB).
- *
- * Stored in: context.filesDir/vision-models/smolvlm-q4.gguf
+ * Manages the offline Local Vision SLM model (SmolVLM / Moondream GGUF ~290 MB).
+ * Stored in: context.filesDir/vision-models/smolvlm-256m-instruct-q4_k_m.gguf
  */
 class LocalVisionManager(private val context: Context) {
 
     companion object {
         private const val TAG = "LocalVisionManager"
         private const val MODEL_DIR = "vision-models"
-        private const val MODEL_FILENAME = "smolvlm-256m-q4_k_m.gguf"
+        private const val MODEL_FILENAME = "smolvlm-256m-instruct-q4_k_m.gguf"
+        // HuggingFace direct download URL for quantized SmolVLM GGUF
         private const val DOWNLOAD_URL =
             "https://huggingface.co/HuggingFaceTB/SmolVLM-256M-Instruct-GGUF/resolve/main/smolvlm-256m-instruct-q4_k_m.gguf"
-        private const val FALLBACK_URL =
+        private const val DOWNLOAD_URL_FALLBACK =
             "https://huggingface.co/vikhyatk/moondream2/resolve/main/moondream2-text-model-q4_k.gguf"
     }
 
@@ -42,19 +39,9 @@ class LocalVisionManager(private val context: Context) {
 
     fun getModelFile(): File = File(File(context.filesDir, MODEL_DIR), MODEL_FILENAME)
 
-    /**
-     * The fast on-device visual analysis engine always works without any model file.
-     * If the full GGUF model is downloaded, deeper inference is used.
-     * Returns true always so Vision tool activates immediately.
-     */
-    fun isModelReady(): Boolean = true
-
-    /**
-     * Returns true only if the full heavy GGUF model (~290MB) is installed.
-     */
-    fun isFullModelInstalled(): Boolean {
+    fun isModelReady(): Boolean {
         val file = getModelFile()
-        return file.exists() && file.length() > 5_000_000L
+        return file.exists() && file.length() > 5_000_000L // valid GGUF model > 5MB
     }
 
     fun deleteModel() {
@@ -70,58 +57,27 @@ class LocalVisionManager(private val context: Context) {
         }
 
         _downloadState.value = VisionDownloadState.Downloading(0)
-        val dir = File(context.filesDir, MODEL_DIR)
-        dir.mkdirs()
-        val tempFile = File(dir, "$MODEL_FILENAME.tmp")
+        val targetFile = getModelFile()
 
-        try {
-            val success = tryDownload(DOWNLOAD_URL, tempFile) || tryDownload(FALLBACK_URL, tempFile)
-            if (!success) {
-                _downloadState.value = VisionDownloadState.Failed("Model yüklənməsi uğursuz oldu. İnternet bağlantısını yoxlayın.")
-                tempFile.delete()
-                return@withContext
-            }
-
-            tempFile.renameTo(getModelFile())
-            _downloadState.value = VisionDownloadState.Completed
-            Log.i(TAG, "Local Vision model successfully installed.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Local vision download error: ${e.message}", e)
-            tempFile.delete()
-            _downloadState.value = VisionDownloadState.Failed("Xəta: ${e.message}")
+        val success = ModelHttpDownloader.downloadFileWithRedirects(
+            initialUrl = DOWNLOAD_URL,
+            destFile = targetFile,
+            minValidSizeBytes = 5_000_000L
+        ) { progress ->
+            _downloadState.value = VisionDownloadState.Downloading(progress)
+        } || ModelHttpDownloader.downloadFileWithRedirects(
+            initialUrl = DOWNLOAD_URL_FALLBACK,
+            destFile = targetFile,
+            minValidSizeBytes = 5_000_000L
+        ) { progress ->
+            _downloadState.value = VisionDownloadState.Downloading(progress)
         }
-    }
 
-    private fun tryDownload(urlStr: String, dest: File): Boolean {
-        return try {
-            Log.i(TAG, "Downloading vision model from $urlStr")
-            val conn = URL(urlStr).openConnection() as HttpURLConnection
-            conn.connectTimeout = 15000
-            conn.readTimeout = 60000
-            conn.connect()
-
-            val total = conn.contentLengthLong
-            var downloaded = 0L
-
-            FileOutputStream(dest).use { fos ->
-                conn.inputStream.use { input ->
-                    val buffer = ByteArray(16384)
-                    var read: Int
-                    while (input.read(buffer).also { read = it } != -1) {
-                        fos.write(buffer, 0, read)
-                        downloaded += read
-                        if (total > 0) {
-                            val progress = ((downloaded * 100) / total).toInt().coerceIn(1, 99)
-                            _downloadState.value = VisionDownloadState.Downloading(progress)
-                        }
-                    }
-                }
-            }
-            conn.disconnect()
-            dest.exists() && dest.length() > 5_000_000L
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to download from $urlStr: ${e.message}")
-            false
+        if (success && isModelReady()) {
+            _downloadState.value = VisionDownloadState.Completed
+            Log.i(TAG, "Local vision model installed successfully.")
+        } else {
+            _downloadState.value = VisionDownloadState.Failed("Vision model faylı yüklənə bilmədi.")
         }
     }
 }

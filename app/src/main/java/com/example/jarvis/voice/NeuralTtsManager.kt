@@ -2,15 +2,13 @@ package com.example.jarvis.voice
 
 import android.content.Context
 import android.util.Log
+import com.example.jarvis.ai.runtime.ModelHttpDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 enum class NeuralVoiceGender(val titleAz: String, val speakerId: Int) {
     JARVIS_MALE("JARVIS Kişi Səsi (Studiya)", 0),
@@ -29,6 +27,8 @@ class NeuralTtsManager(private val context: Context) {
         private const val MODEL_NAME = "jarvis_az_neural_v1.onnx"
         private const val DOWNLOAD_URL =
             "https://huggingface.co/rhasspy/piper-voices/resolve/main/az/az_AZ/neural/medium/az_AZ-neural-medium.onnx"
+        private const val DOWNLOAD_URL_FALLBACK =
+            "https://github.com/rhasspy/piper/releases/download/v0.0.2/voice-az_AZ-neural-medium.onnx"
     }
 
     sealed class NeuralDownloadState {
@@ -50,24 +50,47 @@ class NeuralTtsManager(private val context: Context) {
         }
         set(value) = prefs.edit().putInt("active_gender", value.ordinal).apply()
 
-    /**
-     * Neural TTS always works via on-device formant synthesis.
-     * No external ONNX model file is required.
-     * Returns true always so the TTS engine activates immediately.
-     */
-    fun isModelReady(): Boolean = true
+    fun getModelFile(): File = File(File(context.filesDir, TTS_DIR), MODEL_NAME)
 
-    fun deleteModel() {
-        // Nothing to delete — formant synthesis is built-in
-        Log.i(TAG, "Neural TTS is built-in, no external model to delete.")
+    fun isModelReady(): Boolean {
+        val file = getModelFile()
+        return file.exists() && file.length() > 500_000L
     }
 
-    /**
-     * Neural TTS uses built-in formant synthesis — no download required.
-     * This method immediately signals completion.
-     */
+    fun deleteModel() {
+        getModelFile().delete()
+        _downloadState.value = NeuralDownloadState.Idle
+        Log.i(TAG, "Neural TTS model deleted.")
+    }
+
     suspend fun downloadModel() = withContext(Dispatchers.IO) {
-        _downloadState.value = NeuralDownloadState.Completed
-        Log.i(TAG, "Neural TTS is built-in — no download needed.")
+        if (isModelReady()) {
+            _downloadState.value = NeuralDownloadState.Completed
+            return@withContext
+        }
+
+        _downloadState.value = NeuralDownloadState.Downloading(0)
+        val targetFile = getModelFile()
+
+        val success = ModelHttpDownloader.downloadFileWithRedirects(
+            initialUrl = DOWNLOAD_URL,
+            destFile = targetFile,
+            minValidSizeBytes = 500_000L
+        ) { progress ->
+            _downloadState.value = NeuralDownloadState.Downloading(progress)
+        } || ModelHttpDownloader.downloadFileWithRedirects(
+            initialUrl = DOWNLOAD_URL_FALLBACK,
+            destFile = targetFile,
+            minValidSizeBytes = 500_000L
+        ) { progress ->
+            _downloadState.value = NeuralDownloadState.Downloading(progress)
+        }
+
+        if (success && isModelReady()) {
+            _downloadState.value = NeuralDownloadState.Completed
+            Log.i(TAG, "Neural TTS model installed successfully.")
+        } else {
+            _downloadState.value = NeuralDownloadState.Failed("Neyron səs modeli yüklənə bilmədi.")
+        }
     }
 }

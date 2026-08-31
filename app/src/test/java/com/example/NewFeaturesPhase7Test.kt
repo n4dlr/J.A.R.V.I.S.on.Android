@@ -8,6 +8,7 @@ import com.example.jarvis.voice.NeuralTtsManager
 import com.example.jarvis.voice.NeuralVoiceGender
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,5 +64,20 @@ class NewFeaturesPhase7Test {
 
         assertTrue(started)
         assertTrue(completed)
+    }
+
+    @Test
+    fun testModelDeletionAndStatusChecks() {
+        val dummyContext = TestContext()
+        val visionManager = LocalVisionManager(dummyContext)
+        val neuralManager = NeuralTtsManager(dummyContext)
+
+        // Deleting when empty does not crash
+        visionManager.deleteModel()
+        neuralManager.deleteModel()
+
+        // Should return false if file doesn't exist
+        assertFalse("Non-existent vision file should not be ready", visionManager.isModelReady())
+        assertFalse("Non-existent neural TTS file should not be ready", neuralManager.isModelReady())
     }
 }
