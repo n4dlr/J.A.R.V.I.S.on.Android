@@ -117,6 +117,12 @@ class AppResolver(
         val canonicalToken = AppNameExtractor.extract(rawCandidate)
         val normalizedCandidate = normalizer.normalize(canonicalToken)
 
+        // Block conversational / smalltalk words from being matched as apps
+        val nonAppWords = setOf("salam", "necesen", "necesiniz", "sagol", "privet", "hello", "hi", "tesekkur", "tesekkurler", "sabahin", "axsamin", "gecen", "kimsen")
+        if (normalizedCandidate in nonAppWords || canonicalToken.lowercase() in nonAppWords) {
+            return AppResolutionResult(false, null, null, 0.0f, "BLOCKED_CONVERSATIONAL", "'$rawCandidate' tətbiq deyil, söhbət ifadəsidir.")
+        }
+
         // 1. Direct Alias Match against installed packages
         val aliasCandidates = knownAliasToPackages[normalizedCandidate] ?: knownAliasToPackages[canonicalToken]
         if (aliasCandidates != null) {

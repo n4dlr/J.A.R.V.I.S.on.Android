@@ -44,7 +44,15 @@ class DeterministicIntentMatcher(
         Regex("""(?i)\b(whatsapp|vatsap|wp|telegram|teleqram|tg)(?:\s+(?:da|de|ta|te)|da|de|e|a)?\s+(.+?)\s+(?:mesaj|yaz|salam|gonder)\b""")
     )
 
-    // ── Pattern Definitions ──────────────────────────────────────────────────
+    // ── Conversational & Greeting Patterns ──────────────────────────────────
+    private val greetingAndChatPatterns = listOf(
+        Regex("""(?i)^\s*(salam|salam\s*aleykum|selam|merhaba|hello|hi|hey|hey\s*jarvis|jarvis)\s*$"""),
+        Regex("""(?i)^\s*(necesen|necesiniz|keyfin\s*necedir|veziyyet\s*necedir|halin\s*necedir|ne\s*var\s*ne\s*yox|isler\s*necedir)\s*$"""),
+        Regex("""(?i)^\s*(sabahin\s*xeyir|axsamin\s*xeyir|gunortan\s*xeyir|gecen\s*xeyre|xos\s*gorduk)\s*$"""),
+        Regex("""(?i)^\s*(sen\s*kimsen|kimsen|adin\s*nedir|senin\s*adin\s*nedir|jarvis\s*kimdir|sen\s*nesen)\s*$"""),
+        Regex("""(?i)^\s*(sag\s*ol|cox\s*sag\s*ol|tesekkur\s*edirem|tesekkurler|minnetdaram|təşəkkürlər|təşəkkür\s*edirəm)\s*$"""),
+        Regex("""(?i)^\s*(ne\s*edirsen|ne\s*edə\s*bilirsen|ne\s*bacarirsan|komek\s*et|komek|yardim\s*et)\s*$""")
+    )
 
     private val lockScreenPatterns = listOf(
         Regex("""(?i)\b(telefonu|ekrani|cihazi|ekran|telefonumu)\s*(kilidle|bagla|lock\s*et|lock|blakirofka\s*et|sondur)\b"""),
@@ -310,6 +318,18 @@ class DeterministicIntentMatcher(
                 normalizedQuery = normalized,
                 confidence = IntentConfidence.EXACT_DETERMINISTIC,
                 arguments = mapOf("url" to urlMatch.value),
+                isDeterministic = true
+            )
+        }
+
+        // 0b. CONVERSATIONAL & GREETING (salam, necesen, kimsen, etc.)
+        if (greetingAndChatPatterns.any { it.matches(normalized) }) {
+            return StructuredIntent(
+                intentId = "GREETING_AND_CHAT",
+                rawQuery = rawQuery,
+                normalizedQuery = normalized,
+                confidence = IntentConfidence.EXACT_DETERMINISTIC,
+                arguments = mapOf("text" to rawQuery),
                 isDeterministic = true
             )
         }

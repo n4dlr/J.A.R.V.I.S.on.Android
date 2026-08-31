@@ -236,6 +236,31 @@ class CommandPipeline(
             }
         }
 
+        // 6b. INSTANT GREETING & SMALLTALK
+        if (commandIntent.intentId == "GREETING_AND_CHAT") {
+            val replyText = generateInstantGreetingResponse(normalized)
+            recordAssistantMessage(sanitized, "GREETING_AND_CHAT", replyText, startTime)
+            ttsHelper.speak(replyText)
+            val trace = DiagnosticsTrace(
+                taskId = taskId,
+                rawInput = sanitized,
+                detectedLanguage = detectedLanguage,
+                intentId = "GREETING_AND_CHAT",
+                intentCategory = "GENERAL_CHAT",
+                targetApp = null,
+                resolvedPackage = null,
+                query = null,
+                routerDecisionReason = "Təbii salamlaşma və dialoq",
+                selectedTool = null,
+                executionDurationMs = System.currentTimeMillis() - startTime,
+                verificationStatus = "VERIFIED",
+                recoveryAttempts = 0,
+                status = ToolStatus.SUCCESS
+            )
+            latestDiagnostics = trace
+            return PipelineOutput.ConversationalResponse(sanitized, commandIntent, replyText, trace)
+        }
+
         // 6. CHECK RAG KNOWLEDGE BASE
         if (commandIntent.category == IntentCategory.GENERAL_CHAT && ragEngine != null) {
             val ragAnswer = ragEngine.answerIfKnowledgeAvailable(sanitized)
@@ -436,6 +461,29 @@ class CommandPipeline(
                 durationMs = duration
             )
         )
+    }
+
+    private fun generateInstantGreetingResponse(normalized: String): String {
+        return when {
+            normalized.contains("necesen") || normalized.contains("necesiniz") || normalized.contains("keyfin") || normalized.contains("veziyyet") ->
+                "Təşəkkür edirəm! Bütün sistemlərim aktivdir və əla işləyir. Siz necəsiniz? Sizə necə kömək edə bilərəm?"
+            normalized.contains("ne var ne yox") || normalized.contains("isler") ->
+                "Hər şey qaydasındadır, ser. Cihazınızı idarə etməyə və əmrlərinizi icra etməyə hazıram."
+            normalized.contains("sabahin xeyir") ->
+                "Sabahınız xeyir! Gününüz uğurlu və məhsuldar keçsin. Hansısa bir tapşırığınız var?"
+            normalized.contains("axsamin xeyir") ->
+                "Axşamınız xeyir! Sizə necə kömək edə bilərəm?"
+            normalized.contains("gecen xeyre") ->
+                "Gecəniz xeyrə qalsın. İstirahət edin, sistemləriniz nəzarətdədir."
+            normalized.contains("kimsen") || normalized.contains("adin") || normalized.contains("jarvis kimdir") ->
+                "Mən JARVIS - Android cihazınız üçün hazırlanmış fərdi süni intellekt köməkçisiyəm."
+            normalized.contains("sag ol") || normalized.contains("tesekkur") || normalized.contains("minnetdaram") ->
+                "Dəyməz, xoşdur! Sizə xidmət etmək mənim üçün zövqdür."
+            normalized.contains("ne edirsen") || normalized.contains("ne bacarirsan") || normalized.contains("komek") ->
+                "Mən telefonunuzu idarə edə, zəng vura, mesaj yaza, YouTube-da mahnı axtarıb çala, hava və xəbərləri oxuya və ağıllı ev cihazlarını idarə edə bilərəm."
+            else ->
+                "Salam! Mən JARVIS, sizin şəxsi süni intellekt köməkçinizəm. Əmrinizi gözləyirəm."
+        }
     }
 
     private suspend fun handleToolCompletion(

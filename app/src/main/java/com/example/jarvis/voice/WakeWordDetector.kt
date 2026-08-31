@@ -25,9 +25,7 @@ class WakeWordDetector(
 ) {
     companion object {
         private const val TAG = "WakeWordDetector"
-        private val WAKE_PATTERNS = listOf(
-            "hey jarvis", "ey jarvis", "ay jarvis", "jarvis", "hey carvis", "carvis", "ceyvis", "hey ceyvis"
-        )
+        private val WAKE_REGEX = Regex("""(?i)\b(?:hey\s+jarvis|jarvis|hey\s+carvis|carvis)\b""")
     }
 
     private val _isHotwordActive = MutableStateFlow(false)
@@ -37,41 +35,30 @@ class WakeWordDetector(
     private val scope = CoroutineScope(Dispatchers.Main)
 
     /**
-     * Checks if a transcribed phrase starts with or contains the wake word.
+     * Checks if a transcribed phrase contains the wake word as a distinct word boundary.
      */
     fun extractWakeWordCommand(rawText: String): WakeWordEvent? {
         val normalized = normalizer.normalize(rawText).trim()
+        if (normalized.isBlank()) return null
 
-        for (wake in WAKE_PATTERNS) {
-            if (normalized == wake) {
-                return WakeWordEvent.WakeWordOnly
-            }
-            if (normalized.startsWith("$wake ")) {
-                val command = normalized.substringAfter("$wake ").trim()
-                if (command.isNotBlank()) {
-                    // Try to preserve raw casing for the command
-                    val rawLower = rawText.lowercase()
-                    val idx = rawLower.indexOf(command.take(6).trim())
-                    val cleanCommand = if (idx >= 0) rawText.substring(idx).trim() else command
-                    return WakeWordEvent.WakeWordWithCommand(cleanCommand)
-                }
-                return WakeWordEvent.WakeWordOnly
-            }
+        val match = WAKE_REGEX.find(normalized) ?: return null
+
+        val wakeStart = match.range.first
+        val wakeEnd = match.range.last + 1
+
+        // Extract any command before or after the wake word
+        val before = normalized.substring(0, wakeStart).trim()
+        val after = normalized.substring(wakeEnd).trim()
+        val command = if (after.isNotBlank()) after else before
+
+        if (command.isNotBlank()) {
+            val rawLower = rawText.lowercase()
+            val idx = rawLower.indexOf(command.take(6).trim())
+            val cleanCommand = if (idx >= 0) rawText.substring(idx).trim() else command
+            return WakeWordEvent.WakeWordWithCommand(cleanCommand)
         }
 
-        // Substring wake detection for natural conversational wake-up
-        for (wake in WAKE_PATTERNS) {
-            if (normalized.contains(wake)) {
-                val command = normalized.substringAfter(wake).trim()
-                return if (command.isNotBlank()) {
-                    WakeWordEvent.WakeWordWithCommand(command)
-                } else {
-                    WakeWordEvent.WakeWordOnly
-                }
-            }
-        }
-
-        return null
+        return WakeWordEvent.WakeWordOnly
     }
 
     /**

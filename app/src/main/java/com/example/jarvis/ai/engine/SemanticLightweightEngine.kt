@@ -244,32 +244,60 @@ class SemanticLightweightEngine(
         return null
     }
 
+    private val knownAppAliases = setOf(
+        "youtube", "yutub", "spotify", "whatsapp", "vatsap", "wp", "telegram", "teleqram", "tg",
+        "instagram", "instaqram", "chrome", "xrom", "google", "kamera", "camera", "qalereya",
+        "gallery", "photos", "kalkulyator", "calculator", "saat", "clock", "play store", "market",
+        "gmail", "tiktok", "netflix", "maps", "xerite"
+    )
+
+    private val conversationalBlacklist = setOf(
+        "salam", "necesen", "necesiniz", "sagol", "cox sagol", "tesekkur", "tesekkurler",
+        "sabahin", "axsamin", "gecen", "kimsen", "adin", "nedir", "nece", "ne", "var",
+        "yox", "hara", "harda", "nevaxt", "niye", "bax", "gor", "esit", "dinle", "oxu",
+        "yaz", "et", "qur", "cal", "oynat", "dayan", "saxla", "bitir", "bagla"
+    )
+
     private fun parseAppLaunch(rawQuery: String, normalized: String, tokens: List<String>): CommandIntent? {
-        // App launch: "[App]-u aç" e.g. "YouTube-u aç", "WhatsApp aç", "Telegramı başlat"
+        // App launch requires explicit launch verb or a known app alias
         val verbs = setOf("ac", "baslat", "ise", "sal", "tetbiqini", "tetbiqi", "open", "launch", "ise sal")
-        val caseSuffixes = setOf("u", "i", "a", "e", "da", "de", "nda", "nde", "nu", "ni", "ya", "ye", "ni", "nu", "nu")
-        if (tokens.any { it in verbs || tokens.size == 1 }) {
-            val nonVerbTokens = tokens.filter { it !in verbs && it !in caseSuffixes }
-            if (nonVerbTokens.size in 1..2) {
-                val rawApp = nonVerbTokens.joinToString(" ")
-                val canonicalApp = AppNameExtractor.extract(nonVerbTokens.first())
-                val blacklist = setOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "teqvim", "wifi", "bluetooth", "mahni", "musiqi")
-                if (canonicalApp.isNotBlank() && canonicalApp !in blacklist) {
-                    return CommandIntent(
-                        intentId = "OPEN_APP",
-                        category = IntentCategory.APP,
-                        action = CommandAction.OPEN_APP,
-                        targetApp = canonicalApp,
-                        rawQuery = rawQuery,
-                        normalizedQuery = normalized,
-                        confidence = IntentConfidence.HIGH_HEURISTIC,
-                        source = IntentSource.SEMANTIC_PARSER,
-                        executionStrategy = ExecutionStrategy.DIRECT_API,
-                        parameters = mapOf("app_name" to canonicalApp),
-                        entities = listOf(ExtractedEntity("app_name", canonicalApp))
-                    )
-                }
-            }
+        val caseSuffixes = setOf("u", "i", "a", "e", "da", "de", "nda", "nde", "nu", "ni", "ya", "ye")
+
+        val hasLaunchVerb = tokens.any { it in verbs }
+        val nonVerbTokens = tokens.filter { it !in verbs && it !in caseSuffixes }
+        if (nonVerbTokens.isEmpty()) return null
+
+        val candidate = nonVerbTokens.first()
+        val canonicalApp = AppNameExtractor.extract(candidate)
+
+        // Block conversational words from ever being treated as apps
+        if (canonicalApp in conversationalBlacklist || nonVerbTokens.any { it in conversationalBlacklist }) {
+            return null
+        }
+
+        // Only allow app launch if:
+        // 1. Has an explicit launch verb ("... aç", "... başlat"), OR
+        // 2. The single token is a verified known app alias (e.g. "youtube", "whatsapp", "instagram")
+        val isVerifiedAlias = canonicalApp in knownAppAliases
+        if (!hasLaunchVerb && !isVerifiedAlias) {
+            return null
+        }
+
+        val blacklist = setOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "teqvim", "wifi", "bluetooth", "mahni", "musiqi")
+        if (canonicalApp.isNotBlank() && canonicalApp !in blacklist) {
+            return CommandIntent(
+                intentId = "OPEN_APP",
+                category = IntentCategory.APP,
+                action = CommandAction.OPEN_APP,
+                targetApp = canonicalApp,
+                rawQuery = rawQuery,
+                normalizedQuery = normalized,
+                confidence = IntentConfidence.HIGH_HEURISTIC,
+                source = IntentSource.SEMANTIC_PARSER,
+                executionStrategy = ExecutionStrategy.DIRECT_API,
+                parameters = mapOf("app_name" to canonicalApp),
+                entities = listOf(ExtractedEntity("app_name", canonicalApp))
+            )
         }
         return null
     }

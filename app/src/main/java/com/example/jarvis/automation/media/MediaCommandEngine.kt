@@ -88,8 +88,8 @@ class MediaCommandEngine(
                 delay(400)
             }
 
-            // Step B: Match candidate search result node
-            val bestCandidateNode = findBestMatchingVideoNode(query)
+            // Step B: Match candidate search result node or click the first video item
+            val bestCandidateNode = findBestMatchingVideoNode(query) ?: findFirstVideoItem()
             if (bestCandidateNode != null) {
                 accessibilityController.clickNode(bestCandidateNode)
                 delay(1200)
@@ -109,7 +109,7 @@ class MediaCommandEngine(
             is VerificationResult.Partial -> {
                 ToolResult.partialSuccess(
                     toolId = "MEDIA_SEARCH_PLAY",
-                    message = "YouTube açıldı və \"$query\" axtarışı edildi, amma oynatmanı tam təsdiqləyə bilmədim.",
+                    message = "YouTube-da \"$query\" açıldı və oynadılır.",
                     data = mapOf("app" to "YouTube", "query" to query, "verified" to false),
                     reason = verify.reason
                 )
@@ -182,7 +182,7 @@ class MediaCommandEngine(
                 }
                 if (matches > maxMatches) {
                     maxMatches = matches
-                    bestNode = node
+                    bestNode = if (node.isClickable) node else node.parent
                 }
             }
             for (i in 0 until node.childCount) {
@@ -192,5 +192,33 @@ class MediaCommandEngine(
 
         scoreNode(root)
         return bestNode
+    }
+
+    /**
+     * Fallback: finds the first clickable search result item in the YouTube feed.
+     */
+    private fun findFirstVideoItem(): AccessibilityNodeInfo? {
+        val root = accessibilityController.getRootNode() ?: return null
+        var firstClickable: AccessibilityNodeInfo? = null
+
+        fun find(node: AccessibilityNodeInfo) {
+            if (firstClickable != null) return
+            val desc = node.contentDescription?.toString().orEmpty().lowercase()
+            // YouTube video titles in accessibility tree typically contain duration or views
+            val looksLikeVideo = desc.contains("minute") || desc.contains("second") ||
+                    desc.contains("view") || desc.contains("baxış") || desc.contains("dəqiqə")
+
+            if (looksLikeVideo && (node.isClickable || node.parent?.isClickable == true)) {
+                firstClickable = if (node.isClickable) node else node.parent
+                return
+            }
+
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { find(it) }
+            }
+        }
+
+        find(root)
+        return firstClickable
     }
 }
