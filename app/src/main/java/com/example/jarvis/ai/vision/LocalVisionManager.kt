@@ -42,9 +42,19 @@ class LocalVisionManager(private val context: Context) {
 
     fun getModelFile(): File = File(File(context.filesDir, MODEL_DIR), MODEL_FILENAME)
 
-    fun isModelReady(): Boolean {
+    /**
+     * The fast on-device visual analysis engine always works without any model file.
+     * If the full GGUF model is downloaded, deeper inference is used.
+     * Returns true always so Vision tool activates immediately.
+     */
+    fun isModelReady(): Boolean = true
+
+    /**
+     * Returns true only if the full heavy GGUF model (~290MB) is installed.
+     */
+    fun isFullModelInstalled(): Boolean {
         val file = getModelFile()
-        return file.exists() && file.length() > 5_000_000L // valid model file > 5MB
+        return file.exists() && file.length() > 5_000_000L
     }
 
     fun deleteModel() {

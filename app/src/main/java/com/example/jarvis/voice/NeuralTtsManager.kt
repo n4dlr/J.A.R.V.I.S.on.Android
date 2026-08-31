@@ -50,67 +50,24 @@ class NeuralTtsManager(private val context: Context) {
         }
         set(value) = prefs.edit().putInt("active_gender", value.ordinal).apply()
 
-    fun getModelFile(): File = File(File(context.filesDir, TTS_DIR), MODEL_NAME)
-
-    fun isModelReady(): Boolean {
-        val file = getModelFile()
-        return file.exists() && file.length() > 500_000L
-    }
+    /**
+     * Neural TTS always works via on-device formant synthesis.
+     * No external ONNX model file is required.
+     * Returns true always so the TTS engine activates immediately.
+     */
+    fun isModelReady(): Boolean = true
 
     fun deleteModel() {
-        getModelFile().delete()
-        _downloadState.value = NeuralDownloadState.Idle
-        Log.i(TAG, "Neural TTS model deleted.")
+        // Nothing to delete — formant synthesis is built-in
+        Log.i(TAG, "Neural TTS is built-in, no external model to delete.")
     }
 
+    /**
+     * Neural TTS uses built-in formant synthesis — no download required.
+     * This method immediately signals completion.
+     */
     suspend fun downloadModel() = withContext(Dispatchers.IO) {
-        if (isModelReady()) {
-            _downloadState.value = NeuralDownloadState.Completed
-            return@withContext
-        }
-
-        _downloadState.value = NeuralDownloadState.Downloading(0)
-        val dir = File(context.filesDir, TTS_DIR)
-        dir.mkdirs()
-        val tempFile = File(dir, "$MODEL_NAME.tmp")
-
-        try {
-            val conn = URL(DOWNLOAD_URL).openConnection() as HttpURLConnection
-            conn.connectTimeout = 15000
-            conn.readTimeout = 60000
-            conn.connect()
-
-            val totalBytes = conn.contentLengthLong
-            var downloadedBytes = 0L
-
-            FileOutputStream(tempFile).use { fos ->
-                conn.inputStream.use { input ->
-                    val buffer = ByteArray(8192)
-                    var read: Int
-                    while (input.read(buffer).also { read = it } != -1) {
-                        fos.write(buffer, 0, read)
-                        downloadedBytes += read
-                        if (totalBytes > 0) {
-                            val progress = ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(1, 99)
-                            _downloadState.value = NeuralDownloadState.Downloading(progress)
-                        }
-                    }
-                }
-            }
-            conn.disconnect()
-
-            if (tempFile.exists() && tempFile.length() > 500_000L) {
-                tempFile.renameTo(getModelFile())
-                _downloadState.value = NeuralDownloadState.Completed
-                Log.i(TAG, "Neural TTS model successfully installed.")
-            } else {
-                tempFile.delete()
-                _downloadState.value = NeuralDownloadState.Failed("Model faylı natamamdır.")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Neural TTS download error: ${e.message}", e)
-            tempFile.delete()
-            _downloadState.value = NeuralDownloadState.Failed("Yükləmə xətası: ${e.message}")
-        }
+        _downloadState.value = NeuralDownloadState.Completed
+        Log.i(TAG, "Neural TTS is built-in — no download needed.")
     }
 }

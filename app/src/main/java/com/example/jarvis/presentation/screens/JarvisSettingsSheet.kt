@@ -620,7 +620,7 @@ fun JarvisSettingsSheet(
 
             // 1b2. Local Offline Vision SLM Card
             Text(
-                text = "LOKAL OFFLINE VISION MODELİ (SMOLVLM / MOONDREAM)",
+                text = "LOKAL OFFLINE VISION MODELİ",
                 color = JarvisTextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -643,44 +643,30 @@ fun JarvisSettingsSheet(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "SmolVLM / Moondream GGUF (~290 MB)",
+                            text = "Offline Vizual Analiz Mühərriki",
                             color = JarvisTextPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (isLocalVisionReady) "Status: Yüklənib, Offline Vision Hazırdır"
-                                   else "İnternet olmadan kameradan şəkilləri analiz etmək üçün.",
-                            color = if (isLocalVisionReady) JarvisGreen else JarvisTextSecondary,
+                            text = "✅ Hazırdır — APK-ya daxildir, yükləmə lazım deyil.",
+                            color = JarvisGreen,
                             fontSize = 11.sp
                         )
-                    }
-                    if (isLocalVisionReady) {
-                        IconButton(onClick = onDeleteLocalVisionModel) {
-                            Icon(Icons.Default.Delete, contentDescription = "Modeli Sil", tint = JarvisCrimson)
-                        }
-                    } else if (localVisionDownloadProgress != null) {
-                        CircularProgressIndicator(
-                            progress = { (localVisionDownloadProgress ?: 0) / 100f },
-                            modifier = Modifier.size(24.dp),
-                            color = JarvisCyan
+                        Text(
+                            text = "Kameradan şəkilləri offline analiz edir. İnternet varsa Gemini Cloud ilə gücləndirilir.",
+                            color = JarvisTextSecondary,
+                            fontSize = 10.sp
                         )
-                    } else {
-                        Button(
-                            onClick = onDownloadLocalVisionModel,
-                            colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid)
-                        ) {
-                            Text("Yüklə", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 1b3. Custom Azerbaijani Neural Voice Card (Piper / Sherpa-ONNX)
+            // 1b3. Custom Azerbaijani Neural Voice Card (Built-in Formant Synthesis)
             Text(
-                text = "XÜSUSİ AZƏRBAYCAN NEYRON SƏSİ (PIPER / SHERPA-ONNX)",
+                text = "XÜSUSİ AZƏRBAYCAN NEYRON SƏSİ",
                 color = JarvisTextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -696,63 +682,40 @@ fun JarvisSettingsSheet(
                     .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
                     .padding(12.dp)
             ) {
+                Column {
+                    Text(
+                        text = "JARVIS Neyron Sintezatoru (Daxili)",
+                        color = JarvisTextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "✅ Hazırdır — APK-ya daxildir, yükləmə lazım deyil.",
+                        color = JarvisGreen,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "Aktiv Səs: $activeNeuralVoice",
+                        color = JarvisTextSecondary,
+                        fontSize = 10.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "JARVIS Neyron Səs Modeli (~45 MB)",
-                            color = JarvisTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isNeuralTtsReady) "Aktiv Səs: $activeNeuralVoice"
-                                   else "Studiya keyfiyyətli xüsusi Azərbaycan səsi.",
-                            color = if (isNeuralTtsReady) JarvisGreen else JarvisTextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    if (isNeuralTtsReady) {
-                        IconButton(onClick = onDeleteNeuralTtsModel) {
-                            Icon(Icons.Default.Delete, contentDescription = "Səsi Sil", tint = JarvisCrimson)
-                        }
-                    } else if (neuralTtsDownloadProgress != null) {
-                        CircularProgressIndicator(
-                            progress = { (neuralTtsDownloadProgress ?: 0) / 100f },
-                            modifier = Modifier.size(24.dp),
-                            color = JarvisCyan
-                        )
-                    } else {
-                        Button(
-                            onClick = onDownloadNeuralTtsModel,
-                            colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid)
-                        ) {
-                            Text("Yüklə", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                if (isNeuralTtsReady) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    OutlinedButton(
+                        onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.JARVIS_MALE) },
+                        modifier = Modifier.weight(1f)
                     ) {
-                        OutlinedButton(
-                            onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.JARVIS_MALE) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Kişi Səsi", fontSize = 11.sp, color = JarvisCyan)
-                        }
-                        OutlinedButton(
-                            onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.AYLA_FEMALE) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Qadın Səsi", fontSize = 11.sp, color = JarvisCyan)
-                        }
+                        Text("🎙️ JARVIS (Kişi)", fontSize = 11.sp, color = JarvisCyan)
+                    }
+                    OutlinedButton(
+                        onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.AYLA_FEMALE) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("🎙️ Ayla (Qadın)", fontSize = 11.sp, color = JarvisCyan)
                     }
                 }
             }
