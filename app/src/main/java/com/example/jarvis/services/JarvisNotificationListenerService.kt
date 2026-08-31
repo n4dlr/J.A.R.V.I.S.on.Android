@@ -33,6 +33,13 @@ class JarvisNotificationListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         refreshNotifications()
+        sbn?.let {
+            val simple = it.toSimple()
+            if (simple.title.isNotBlank() || simple.text.isNotBlank()) {
+                StateHolder.lastNotification = simple
+                StateHolder.notificationCallback?.invoke(simple)
+            }
+        }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
@@ -77,6 +84,8 @@ class JarvisNotificationListenerService : NotificationListenerService() {
     object StateHolder {
         var connected: Boolean = false
         var notifications: List<SimpleNotification> = emptyList()
+        var lastNotification: SimpleNotification? = null
+        var notificationCallback: ((SimpleNotification) -> Unit)? = null
     }
 }
 

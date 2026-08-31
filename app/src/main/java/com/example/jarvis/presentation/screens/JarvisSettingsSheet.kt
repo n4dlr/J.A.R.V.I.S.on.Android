@@ -20,19 +20,25 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -85,9 +91,18 @@ fun JarvisSettingsSheet(
     hasGeminiApiKey: Boolean,
     isWakeWordEnabled: Boolean,
     activeLanguage: String,
+    isShakeToWakeEnabled: Boolean = false,
+    isNotificationReadoutEnabled: Boolean = false,
+    isModelDownloaded: Boolean = false,
+    modelDownloadProgress: Int? = null,
+    modelDownloadError: String? = null,
     onToggleTts: (Boolean) -> Unit,
     onToggleWakeWord: (Boolean) -> Unit,
     onSetLanguage: (String) -> Unit,
+    onToggleShakeToWake: (Boolean) -> Unit = {},
+    onToggleNotificationReadout: (Boolean) -> Unit = {},
+    onDownloadModel: () -> Unit = {},
+    onDeleteModel: () -> Unit = {},
     onGeminiApiKeyChanged: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -176,6 +191,96 @@ fun JarvisSettingsSheet(
                     isSelected = activeProviderType == AIProviderType.FALLBACK_HYBRID,
                     onClick = { onSelectProvider(AIProviderType.FALLBACK_HYBRID) }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Local Model GGUF Download & Status Card
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, if (isModelDownloaded) JarvisGreen.copy(alpha = 0.5f) else JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isModelDownloaded) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                                contentDescription = null,
+                                tint = if (isModelDownloaded) JarvisGreen else JarvisCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Lokal Model (Qwen2.5-0.5B Q4)",
+                                color = JarvisTextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = if (isModelDownloaded) "Model hazırdır (Offline AI aktivdir)" else "Model faylı yüklənməyib (~390 MB)",
+                            color = if (isModelDownloaded) JarvisGreen else JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                if (modelDownloadProgress != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { modelDownloadProgress / 100f },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = JarvisCyan,
+                        trackColor = JarvisDarkVoid
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Yüklənir: $modelDownloadProgress%",
+                        color = JarvisCyan,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                if (modelDownloadError != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Xəta: $modelDownloadError",
+                        color = JarvisCrimson,
+                        fontSize = 10.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (!isModelDownloaded && modelDownloadProgress == null) {
+                    Button(
+                        onClick = onDownloadModel,
+                        colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Modeli Yüklə (HuggingFace)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else if (isModelDownloaded) {
+                    OutlinedButton(
+                        onClick = onDeleteModel,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = JarvisCrimson, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Modeli Yaddaşdan Sil", color = JarvisCrimson, fontSize = 11.sp)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -284,6 +389,76 @@ fun JarvisSettingsSheet(
                             )
                         }
                     }
+                }
+
+                // Shake to Wake Gesture Toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Vibration,
+                                contentDescription = null,
+                                tint = if (isShakeToWakeEnabled) JarvisCyan else JarvisTextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Silkələyərək aktivləşdirmə", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "Telefonu silkələdikdə JARVIS dinləməyə başlayır.",
+                            color = JarvisTextSecondary, fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isShakeToWakeEnabled,
+                        onCheckedChange = onToggleShakeToWake,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisCyan,
+                            checkedTrackColor = JarvisDarkNavy,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = JarvisDarkVoid
+                        )
+                    )
+                }
+
+                // Incoming Notification Readout Toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = if (isNotificationReadoutEnabled) JarvisCyan else JarvisTextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Gələn bildirişləri oxu", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "Yeni mesaj və ya bildiriş gələndə səsləndirilir.",
+                            color = JarvisTextSecondary, fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isNotificationReadoutEnabled,
+                        onCheckedChange = onToggleNotificationReadout,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisCyan,
+                            checkedTrackColor = JarvisDarkNavy,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = JarvisDarkVoid
+                        )
+                    )
                 }
 
                 Text("Açar yalnız bu cihazda saxlanır.", color = JarvisTextSecondary, fontSize = 10.sp)

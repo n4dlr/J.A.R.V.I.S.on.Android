@@ -23,6 +23,10 @@ import com.example.jarvis.rag.RAGEngine
 import com.example.jarvis.security.CommandSanitizer
 import com.example.jarvis.security.RiskManager
 import com.example.jarvis.tools.ToolRegistry
+import com.example.jarvis.ai.runtime.ModelDownloadManager
+import com.example.jarvis.ai.runtime.ModelDownloadState
+import com.example.jarvis.services.JarvisNotificationListenerService
+import com.example.jarvis.voice.ShakeDetector
 import com.example.jarvis.voice.TextToSpeechHelper
 import com.example.jarvis.voice.VoiceRecognizerHelper
 import com.example.jarvis.voice.WakeWordDetector
@@ -75,6 +79,16 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     // Wake word detector (hands-free "Hey JARVIS" / "JARVIS" activation)
     val wakeWordDetector = WakeWordDetector(context, voiceHelper, normalizer)
 
+    // Model Download Manager
+    val modelDownloadManager = ModelDownloadManager(context)
+
+    // Shake Detector
+    private val shakeDetector = ShakeDetector(context) {
+        if (!_uiState.value.isListening && !_uiState.value.isProcessing) {
+            startVoiceListening()
+        }
+    }
+
     // RAG Engine
     val ragEngine = RAGEngine(repository)
 
@@ -100,7 +114,10 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             isLowRamModeEnforced = lowRamManager.isLowRamEnvironment(),
             isTtsEnabled = preferences.getBoolean("tts_enabled", false),
             hasGeminiApiKey = storedGeminiApiKey.isNotBlank(),
-            activeLanguage = preferences.getString("active_language", "az-AZ") ?: "az-AZ"
+            activeLanguage = preferences.getString("active_language", "az-AZ") ?: "az-AZ",
+            isShakeToWakeEnabled = preferences.getBoolean("shake_to_wake_enabled", false),
+            isNotificationReadoutEnabled = preferences.getBoolean("notif_readout_enabled", false),
+            isModelDownloaded = modelDownloadManager.isModelDownloaded()
         )
     )
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -151,6 +168,40 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         if (savedWakeWord) {
             _uiState.update { it.copy(isWakeWordEnabled = true) }
             startWakeWordListening()
+        }
+
+        // Restore shake to wake
+        val savedShake = preferences.getBoolean("shake_to_wake_enabled", false)
+        if (savedShake) {
+            shakeDetector.start()
+        }
+
+        // Connect notification listener callback
+        JarvisNotificationListenerService.StateHolder.notificationCallback = { notif ->
+            if (_uiState.value.isNotificationReadoutEnabled && _uiState.value.isTtsEnabled) {
+                ttsHelper.speak("Yeni bildiriş: ${notif.appLabel} tətbiqindən. ${notif.title}. ${notif.text}")
+            }
+        }
+
+        // Observe model download state
+        viewModelScope.launch {
+            modelDownloadManager.downloadState.collect { dState ->
+                when (dState) {
+                    is ModelDownloadState.Idle -> {
+                        _uiState.update { it.copy(modelDownloadProgress = null, modelDownloadError = null, isModelDownloaded = modelDownloadManager.isModelDownloaded()) }
+                    }
+                    is ModelDownloadState.Downloading -> {
+                        _uiState.update { it.copy(modelDownloadProgress = dState.progressPercent, modelDownloadError = null) }
+                    }
+                    is ModelDownloadState.Completed -> {
+                        _uiState.update { it.copy(modelDownloadProgress = null, isModelDownloaded = true, modelDownloadError = null) }
+                        ttsHelper.speak("Lokal SLM modeli uğurla yükləndi və hazır vəziyyətə gətirildi.")
+                    }
+                    is ModelDownloadState.Failed -> {
+                        _uiState.update { it.copy(modelDownloadProgress = null, modelDownloadError = dState.error) }
+                    }
+                }
+            }
         }
 
         // Initial health check & history preload
@@ -207,6 +258,38 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+    }
+
+    // ── Shake & Gesture ───────────────────────────────────────────────────────
+
+    fun toggleShakeToWake(enabled: Boolean) {
+        preferences.edit().putBoolean("shake_to_wake_enabled", enabled).apply()
+        _uiState.update { it.copy(isShakeToWakeEnabled = enabled) }
+        if (enabled) {
+            shakeDetector.start()
+        } else {
+            shakeDetector.stop()
+        }
+    }
+
+    // ── Notification Readout ──────────────────────────────────────────────────
+
+    fun toggleNotificationReadout(enabled: Boolean) {
+        preferences.edit().putBoolean("notif_readout_enabled", enabled).apply()
+        _uiState.update { it.copy(isNotificationReadoutEnabled = enabled) }
+    }
+
+    // ── Model Download ────────────────────────────────────────────────────────
+
+    fun downloadLocalModel() {
+        viewModelScope.launch(Dispatchers.IO) {
+            modelDownloadManager.downloadModel()
+        }
+    }
+
+    fun deleteLocalModel() {
+        modelDownloadManager.deleteModel()
+        _uiState.update { it.copy(isModelDownloaded = false) }
     }
 
     fun setTtsEnabled(enabled: Boolean) {
@@ -402,6 +485,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        shakeDetector.stop()
         wakeWordDetector.stopContinuousHotwordListening()
         voiceHelper.stopListening()
         ttsHelper.shutdown()

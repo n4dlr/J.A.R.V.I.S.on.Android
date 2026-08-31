@@ -109,6 +109,73 @@ class GeminiProvider(
         }
     }
 
+    suspend fun analyzeImage(
+        imageBytes: ByteArray,
+        prompt: String
+    ): JarvisResult<String> = withContext(Dispatchers.IO) {
+        val apiKey = runtimeApiKey().ifBlank {
+            try { BuildConfig.GEMINI_API_KEY } catch (_: Throwable) { "" }
+        }
+
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            return@withContext JarvisResult.Error("Gemini API açarı daxil edilməyib.")
+        }
+
+        try {
+            val base64Image = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+
+            val partsArray = JSONArray().apply {
+                put(JSONObject().put("text", prompt))
+                put(JSONObject().apply {
+                    put("inlineData", JSONObject().apply {
+                        put("mimeType", "image/jpeg")
+                        put("data", base64Image)
+                    })
+                })
+            }
+
+            val contentsArray = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", partsArray)
+                })
+            }
+
+            val jsonBody = JSONObject().apply {
+                put("contents", contentsArray)
+                put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "Sən vizual analitiksən. Şəkli Azərbaycan dilində dəqiq, aydın və qısa təsvir et."))))
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.4)
+                    put("maxOutputTokens", 512)
+                })
+            }
+
+            val request = Request.Builder()
+                .url("$baseUrl?key=$apiKey")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext JarvisResult.Error("Gemini Vision xətası: HTTP ${response.code} $responseBody")
+            }
+
+            val json = JSONObject(responseBody)
+            val text = json.optJSONArray("candidates")
+                ?.optJSONObject(0)
+                ?.optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?.optJSONObject(0)
+                ?.optString("text", "Təsvir tapılmadı.") ?: "Təsvir boşdur."
+
+            JarvisResult.Success(text.trim())
+        } catch (e: Exception) {
+            JarvisResult.Error("Vision analizi xətası: ${e.message}", e)
+        }
+    }
+
     override fun stream(
         prompt: String,
         context: List<ConversationMessage>

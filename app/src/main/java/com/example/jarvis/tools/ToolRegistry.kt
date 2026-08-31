@@ -86,9 +86,14 @@ import com.example.jarvis.tools.impl.system.OpenNotificationsTool
 import com.example.jarvis.tools.impl.system.OpenQuickSettingsTool
 import com.example.jarvis.tools.impl.system.OpenRecentsTool
 import com.example.jarvis.tools.impl.system.ScreenControlTool
+import com.example.jarvis.tools.impl.messaging.SendTelegramMessageTool
+import com.example.jarvis.tools.impl.messaging.SendWhatsAppMessageTool
+import com.example.jarvis.tools.impl.timer.SetTimerTool
+import com.example.jarvis.tools.impl.vision.AnalyzePhotoTool
 import com.example.jarvis.tools.impl.voice.SpeakTool
 import com.example.jarvis.tools.impl.voice.StartListeningTool
 import com.example.jarvis.tools.impl.voice.StopListeningTool
+import com.example.jarvis.tools.impl.weather.GetWeatherTool
 import java.util.concurrent.ConcurrentHashMap
 
 class ToolRegistry {
@@ -230,6 +235,19 @@ class ToolRegistry {
         register(GoBackTool())
         register(AccessibilityGoHomeTool())
         register(InteractWithUiTool())
+
+        // --- WEATHER ---
+        register(GetWeatherTool())
+
+        // --- TIMER & CLOCK ---
+        register(SetTimerTool())
+
+        // --- MESSAGING (WhatsApp & Telegram) ---
+        register(SendWhatsAppMessageTool())
+        register(SendTelegramMessageTool())
+
+        // --- VISION AI ---
+        register(AnalyzePhotoTool())
     }
 
     fun register(tool: Tool) {

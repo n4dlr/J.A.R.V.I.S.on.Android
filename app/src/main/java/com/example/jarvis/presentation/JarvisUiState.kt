@@ -32,5 +32,10 @@ data class JarvisUiState(
     val executionStage: String? = null, // "UNDERSTANDING", "PLANNING", "EXECUTING", "VERIFYING", etc.
     val diagnosticsTrace: DiagnosticsTrace? = null,
     val activeLanguage: String = "az-AZ",
-    val isWakeWordEnabled: Boolean = false
+    val isWakeWordEnabled: Boolean = false,
+    val isShakeToWakeEnabled: Boolean = false,
+    val isNotificationReadoutEnabled: Boolean = false,
+    val isModelDownloaded: Boolean = false,
+    val modelDownloadProgress: Int? = null, // null when idle, 0..100 when downloading
+    val modelDownloadError: String? = null
 )

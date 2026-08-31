@@ -84,15 +84,25 @@ class ModelRuntime(
 
             val destination = File(context.filesDir, MODEL_FILENAME)
             if (!destination.exists() || destination.length() == 0L) {
-                withContext(Dispatchers.IO) {
-                    context.assets.open(MODEL_FILENAME).use { input ->
-                        destination.outputStream().use { output ->
-                            input.copyTo(output)
+                try {
+                    withContext(Dispatchers.IO) {
+                        context.assets.open(MODEL_FILENAME).use { input ->
+                            destination.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
                         }
                     }
+                } catch (_: Exception) {
+                    Log.i(TAG, "No embedded model asset found, checking downloaded storage...")
                 }
             }
             modelFile = destination
+
+            if (!destination.exists() || destination.length() == 0L) {
+                Log.w(TAG, "No GGUF model file in filesDir or assets. Using fast semantic SLM fallback.")
+                _state.value = RuntimeState.READY
+                return true
+            }
 
             val engine = inferenceEngine ?: AiChat.getInferenceEngine(context).also { inferenceEngine = it }
             val engineState = engine.state.first { it is InferenceEngine.State.Initialized || it is InferenceEngine.State.Error }

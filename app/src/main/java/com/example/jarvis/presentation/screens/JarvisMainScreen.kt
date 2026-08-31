@@ -585,9 +585,18 @@ fun JarvisMainScreen(
             hasGeminiApiKey = uiState.hasGeminiApiKey,
             isWakeWordEnabled = uiState.isWakeWordEnabled,
             activeLanguage = uiState.activeLanguage,
+            isShakeToWakeEnabled = uiState.isShakeToWakeEnabled,
+            isNotificationReadoutEnabled = uiState.isNotificationReadoutEnabled,
+            isModelDownloaded = uiState.isModelDownloaded,
+            modelDownloadProgress = uiState.modelDownloadProgress,
+            modelDownloadError = uiState.modelDownloadError,
             onToggleTts = { viewModel.setTtsEnabled(it) },
             onToggleWakeWord = { viewModel.toggleWakeWordMode(it) },
             onSetLanguage = { viewModel.setActiveLanguage(it) },
+            onToggleShakeToWake = { viewModel.toggleShakeToWake(it) },
+            onToggleNotificationReadout = { viewModel.toggleNotificationReadout(it) },
+            onDownloadModel = { viewModel.downloadLocalModel() },
+            onDeleteModel = { viewModel.deleteLocalModel() },
             onGeminiApiKeyChanged = { viewModel.setGeminiApiKey(it) },
             onDismiss = { viewModel.toggleSettingsSheet(false) }
         )

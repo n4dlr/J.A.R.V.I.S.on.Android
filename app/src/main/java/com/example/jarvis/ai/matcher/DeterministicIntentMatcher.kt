@@ -40,7 +40,8 @@ class DeterministicIntentMatcher(
      * e.g. "WhatsApp-da Nadirə salam yaz", "Telegram-da X-ə mesaj yaz"
      */
     private val appMessagePatterns = listOf(
-        Regex("""(?i)^\s*(\S+(?:-(?:da|de|ta|te|da|de))?)\s+(.+?)\s+(?:salam|mesaj|yaz|gonder|yazdir)\w*\s*$""")
+        Regex("""(?i)^\s*(\S+)(?:\s+(?:da|de|ta|te))?\s+(.+?)\s+(?:salam|mesaj|yaz|gonder|yazdir)\w*\s*$"""),
+        Regex("""(?i)\b(whatsapp|vatsap|wp|telegram|teleqram|tg)(?:\s+(?:da|de|ta|te)|da|de|e|a)?\s+(.+?)\s+(?:mesaj|yaz|salam|gonder)\b""")
     )
 
     // ── Pattern Definitions ──────────────────────────────────────────────────
@@ -221,6 +222,33 @@ class DeterministicIntentMatcher(
         Regex("""(?i)\b(duymeye\s*bas|klik\s*et|vur)\s*(.+)?\b""")
     )
 
+    private val weatherPatterns = listOf(
+        Regex("""(?i)\b(hava|havanin|havani|hava\s*durumu|hava\s*proqnozu|proqnoz|temperatur|weather|pogoda)\b"""),
+        Regex("""(?i)\b(baki|gence|sumqayit|seki|lenkeran|istanbul|ankara|moskva|london)\w*\s*(hava\w*|proqnoz\w*)\b"""),
+        Regex("""(?i)^\s*(hava\s*necedir|hava\s*durumu|hava\s*proqnozu|hava|weather)\s*$""")
+    )
+
+    private val timerPatterns = listOf(
+        Regex("""(?i)\b(\d+)\s*(deqiqe|saniye|saat|deqiqelik|saniyelik|saatliq|min|sec|minutes?|seconds?)\s*(taymer|saygac|timer)\b"""),
+        Regex("""(?i)\b(taymer|saygac|timer)\s*(qur|qoy|baslat|set)\b"""),
+        Regex("""(?i)\b(set\s*timer|taymer\s*qur)\b""")
+    )
+
+    private val whatsappPatterns = listOf(
+        Regex("""(?i)\b(whatsapp|vatsap|wp|vatsapa|whatsapp-da|whatsappda)\b.*(mesaj|yaz|gonder|send)"""),
+        Regex("""(?i)\b(whatsapp|vatsap|wp)\s+(.+?)\s+(mesaj|yaz|gonder)\b""")
+    )
+
+    private val telegramPatterns = listOf(
+        Regex("""(?i)\b(telegram|teleqram|tg|telegrama|telegram-da|telegramda)\b.*(mesaj|yaz|gonder|send)"""),
+        Regex("""(?i)\b(telegram|teleqram)\s+(.+?)\s+(mesaj|yaz|gonder)\b""")
+    )
+
+    private val visionPatterns = listOf(
+        Regex("""(?i)\b(bu\s*sekilde\s*ne\s*var|sekli\s*analiz\s*et|bu\s*nedir|sekilde\s*ne\s*gorursen|foto\s*analiz|analyze\s*photo|vision)\b"""),
+        Regex("""(?i)^\s*(bu\s*sekilde\s*ne\s*var|sekli\s*oxu|sekli\s*analiz\s*et)\s*$""")
+    )
+
     private val openAppPattern = Regex("""(?i)^\s*(.+?)\s+(ac|baslat|ise\s*sal|launch|open)\s*$""")
 
     // Words that disqualify a token sequence from being a bare app name.
@@ -313,8 +341,13 @@ class DeterministicIntentMatcher(
                     val hasMediaWord = tokens.any { it in setOf("mahni", "mahnisini", "musiqi", "musiqisini", "parca", "sarki", "cal", "oynat", "dinle", "oxut") }
                     val isSearchApp = appName in setOf("google", "chrome", "xrom", "browser", "brauzer", "firefox")
                     val hasSearchWord = tokens.any { it in setOf("axtar", "axtaris", "haqqinda", "haqda", "search") }
+                    val isMessageApp = appName in setOf("whatsapp", "vatsap", "wp", "telegram", "teleqram", "tg")
+                    val hasMessageWord = tokens.any { it in setOf("mesaj", "yaz", "salam", "gonder", "yazdir", "send") }
 
                     val intentId = when {
+                        isMessageApp || hasMessageWord -> {
+                            if (appName in setOf("telegram", "teleqram", "tg")) "SEND_TELEGRAM_MESSAGE" else "SEND_WHATSAPP_MESSAGE"
+                        }
                         isSearchApp || (hasSearchWord && !hasMediaWord && !isMediaApp) -> {
                             if (appName in setOf("chrome", "xrom", "browser", "brauzer", "firefox", "google")) "WEB_SEARCH" else "APP_SEARCH"
                         }
@@ -328,7 +361,10 @@ class DeterministicIntentMatcher(
                         confidence = IntentConfidence.EXACT_DETERMINISTIC,
                         arguments = mapOf(
                             "target_app" to appName,
-                            "query" to originalQuery
+                            "query" to originalQuery,
+                            "recipient" to query,
+                            "contact" to query,
+                            "message" to rawQuery
                         ),
                         extractedEntities = listOf(appName, originalQuery),
                         isDeterministic = true
@@ -369,14 +405,21 @@ class DeterministicIntentMatcher(
                         val contact = match.groupValues[2].trim()
                         val appName2 = AppNameExtractor.extract(rawApp)
                         if (contact.isNotBlank()) {
+                            val intentId = when (appName2) {
+                                "whatsapp", "vatsap", "wp" -> "SEND_WHATSAPP_MESSAGE"
+                                "telegram", "teleqram", "tg" -> "SEND_TELEGRAM_MESSAGE"
+                                else -> "SEND_MESSAGE_IN_APP"
+                            }
                             return StructuredIntent(
-                                intentId = "SEND_MESSAGE_IN_APP",
+                                intentId = intentId,
                                 rawQuery = rawQuery,
                                 normalizedQuery = normalized,
                                 confidence = IntentConfidence.HIGH_HEURISTIC,
                                 arguments = mapOf(
                                     "target_app" to appName2,
-                                    "contact" to contact
+                                    "recipient" to contact,
+                                    "contact" to contact,
+                                    "message" to rawQuery
                                 ),
                                 isDeterministic = false
                             )
@@ -593,6 +636,58 @@ class DeterministicIntentMatcher(
             } else {
                 StructuredIntent("OPEN_BROWSER", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, isDeterministic = true)
             }
+        }
+
+        // 19b. WEATHER
+        if (weatherPatterns.any { it.containsMatchIn(normalized) }) {
+            val city = when {
+                normalized.contains("gence") || normalized.contains("gəncə") -> "Ganja"
+                normalized.contains("sumqayit") || normalized.contains("sumqayıt") -> "Sumqayit"
+                normalized.contains("seki") || normalized.contains("şəki") -> "Shaki"
+                normalized.contains("lenkeran") || normalized.contains("lənkəran") -> "Lankaran"
+                normalized.contains("istanbul") -> "Istanbul"
+                normalized.contains("ankara") -> "Ankara"
+                normalized.contains("moskva") -> "Moscow"
+                normalized.contains("london") -> "London"
+                else -> "Baku"
+            }
+            return StructuredIntent("GET_WEATHER", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("city" to city), isDeterministic = true)
+        }
+
+        // 19c. TIMER
+        if (timerPatterns.any { it.containsMatchIn(normalized) }) {
+            val minutesMatch = Regex("""\b(\d+)\s*(?:deqiqe|deqiqelik|min|minutes?)\b""").find(normalized)
+            val secondsMatch = Regex("""\b(\d+)\s*(?:saniye|saniyelik|sec|seconds?)\b""").find(normalized)
+            val hoursMatch = Regex("""\b(\d+)\s*(?:saat|saatliq|hours?)\b""").find(normalized)
+
+            val min = minutesMatch?.groupValues?.get(1) ?: "0"
+            val sec = secondsMatch?.groupValues?.get(1) ?: "0"
+            val hr = hoursMatch?.groupValues?.get(1) ?: "0"
+
+            val defaultMin = if (min == "0" && sec == "0" && hr == "0") {
+                val bareNum = Regex("""\b(\d+)\b""").find(normalized)?.groupValues?.get(1) ?: "5"
+                bareNum
+            } else min
+
+            return StructuredIntent("SET_TIMER", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("minutes" to defaultMin, "seconds" to sec, "hours" to hr), isDeterministic = true)
+        }
+
+        // 19d. WHATSAPP & TELEGRAM MESSAGING
+        if (whatsappPatterns.any { it.containsMatchIn(normalized) }) {
+            val recipientMatch = Regex("""(?i)\b(?:whatsapp|vatsap|wp)(?:-da|da)?\s+(.+?)\s+(?:mesaj|yaz|salam|gonder)\b""").find(normalized)
+            val recipient = recipientMatch?.groupValues?.get(1)?.trim() ?: ""
+            return StructuredIntent("SEND_WHATSAPP_MESSAGE", rawQuery, normalized, IntentConfidence.HIGH_HEURISTIC, mapOf("recipient" to recipient, "message" to rawQuery), isDeterministic = false)
+        }
+
+        if (telegramPatterns.any { it.containsMatchIn(normalized) }) {
+            val recipientMatch = Regex("""(?i)\b(?:telegram|teleqram|tg)(?:-da|da)?\s+(.+?)\s+(?:mesaj|yaz|salam|gonder)\b""").find(normalized)
+            val recipient = recipientMatch?.groupValues?.get(1)?.trim() ?: ""
+            return StructuredIntent("SEND_TELEGRAM_MESSAGE", rawQuery, normalized, IntentConfidence.HIGH_HEURISTIC, mapOf("recipient" to recipient, "message" to rawQuery), isDeterministic = false)
+        }
+
+        // 19e. VISION AI
+        if (visionPatterns.any { it.containsMatchIn(normalized) }) {
+            return StructuredIntent("ANALYZE_PHOTO", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("prompt" to rawQuery), isDeterministic = true)
         }
 
         // 20. OPEN_APP ("youtube ac", "whatsapp baslat", "telegrami ac", etc.)
