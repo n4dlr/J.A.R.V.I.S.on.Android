@@ -1,9 +1,8 @@
 package com.example.jarvis.presentation
 
+import com.example.jarvis.automation.DiagnosticsTrace
 import com.example.jarvis.core.MemoryTelemetry
 import com.example.jarvis.domain.model.AIProviderType
-import com.example.jarvis.domain.model.ConversationMessage
-import com.example.jarvis.domain.model.ExecutionLog
 import com.example.jarvis.domain.model.PendingActionConfirmation
 import com.example.jarvis.domain.model.ProviderHealth
 import com.example.jarvis.domain.model.ToolResult
@@ -24,9 +23,14 @@ data class JarvisUiState(
     val isLowRamModeEnforced: Boolean = false,
     val speechError: String? = null,
     val showSettingsSheet: Boolean = false,
+    val showDiagnosticsScreen: Boolean = false,
     val isTtsEnabled: Boolean = false,
     val hasGeminiApiKey: Boolean = false,
     val performanceMetrics: com.example.jarvis.core.PerformanceMetrics? = null,
     val confirmationProfile: com.example.jarvis.security.ConfirmationProfile = com.example.jarvis.security.ConfirmationProfile.STANDARD,
-    val recognizedSpeechPreview: String = ""
+    val recognizedSpeechPreview: String = "",
+    val executionStage: String? = null, // "UNDERSTANDING", "PLANNING", "EXECUTING", "VERIFYING", etc.
+    val diagnosticsTrace: DiagnosticsTrace? = null,
+    val activeLanguage: String = "az-AZ",
+    val isWakeWordEnabled: Boolean = false
 )

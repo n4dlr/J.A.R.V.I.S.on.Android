@@ -1,6 +1,21 @@
 package com.example.jarvis.ai.normalizer
 
+import java.util.Locale
+
+enum class SupportedLanguage(val code: String, val label: String) {
+    AZERBAIJANI("az-AZ", "Azərbaycan"),
+    TURKISH("tr-TR", "Türkçe"),
+    ENGLISH("en-US", "English")
+}
+
 class AzerbaijaniTextNormalizer {
+
+    // Polite / filler words to strip when understanding intent, while preserving the core command
+    val fillerPhrases = listOf(
+        "zehmet olmasa", "zehmet deyilse", "bir zehmet", "xahis edirem",
+        "mene", "bunu", "onu", "indi", "lutfen", "lütfən", "zəhmət olmasa", "xahiş edirəm",
+        "please", "can you", "could you", "just"
+    )
 
     // Common colloquial/slang and phonetic replacements in Azerbaijani
     private val synonymMap = mapOf(
@@ -15,8 +30,6 @@ class AzerbaijaniTextNormalizer {
         "fenari" to "feneri",
         "isigi" to "feneri",
         "isiq" to "fener",
-        "isigi yandir" to "feneri yandir",
-        "isigi sondur" to "feneri sondur",
         "operativka" to "ram",
         "operativ" to "ram",
         "pamyat" to "yaddas",
@@ -27,7 +40,6 @@ class AzerbaijaniTextNormalizer {
         "foto" to "sekil",
         "selfi" to "sekil",
         "fotokamera" to "kamera",
-        "kilidle" to "kilidle",
         "blakirofka" to "kilidle",
         "blokirofka" to "kilidle",
         "blokla" to "kilidle",
@@ -46,10 +58,14 @@ class AzerbaijaniTextNormalizer {
         "yutubu" to "youtube"
     )
 
+    /**
+     * Standard normalization: lowers case, maps AZ specific characters to ASCII equivalents,
+     * strips punctuation, cleans extra spaces and maps common synonyms.
+     */
     fun normalize(rawText: String): String {
         if (rawText.isBlank()) return ""
 
-        var processed = rawText.lowercase(java.util.Locale.ROOT).trim()
+        var processed = rawText.lowercase(Locale.ROOT).trim()
 
         // 1. Replace special Azerbaijani characters with standard ASCII equivalents for resilient phonetic matching
         processed = processed
@@ -75,6 +91,38 @@ class AzerbaijaniTextNormalizer {
         }
 
         return processed
+    }
+
+    /**
+     * Strips polite filler words (e.g. "zəhmət olmasa", "mənə", "indi") from a normalized string.
+     */
+    fun stripFillers(normalizedText: String): String {
+        var result = normalizedText
+        for (filler in fillerPhrases) {
+            val normFiller = normalize(filler)
+            result = result.replace(Regex("""\b$normFiller\b"""), " ")
+        }
+        return result.replace(Regex("""\s+"""), " ").trim()
+    }
+
+    /**
+     * Detects language heuristic (Azerbaijani, Turkish, or English).
+     */
+    fun detectLanguage(rawText: String): SupportedLanguage {
+        val lower = rawText.lowercase(Locale.ROOT)
+        // Azerbaijani specific markers
+        if (lower.contains("ə") || lower.contains("ın") || lower.contains("da") || lower.contains("musiqi") || lower.contains("aç") || lower.contains("yandır") || lower.contains("mahnı")) {
+            return SupportedLanguage.AZERBAIJANI
+        }
+        // Turkish specific markers
+        if (lower.contains("şarkı") || lower.contains("çal") || lower.contains("ara") || lower.contains("aç") || lower.contains("lütfen") || lower.contains("nasıl")) {
+            return SupportedLanguage.TURKISH
+        }
+        // English markers
+        if (lower.contains("open") || lower.contains("play") || lower.contains("search") || lower.contains("turn on") || lower.contains("battery") || lower.contains("what is")) {
+            return SupportedLanguage.ENGLISH
+        }
+        return SupportedLanguage.AZERBAIJANI // Default
     }
 
     /**

@@ -599,13 +599,13 @@ class DeterministicIntentMatcher(
         val appMatch = openAppPattern.find(normalized)
         if (appMatch != null) {
             val rawAppName = appMatch.groupValues[1].trim()
-            val blacklisted = listOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "kontakt", "teqvim", "play store", "bildiris", "wifi", "vayfay", "bluetooth", "blutuz", "parametr")
+            val blacklisted = listOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "kontakt", "teqvim", "play store", "bildiris", "wifi", "vayfay", "bluetooth", "blutuz", "parametr", "mahni", "musiqi")
             // Reject if the "app name" contains query-polluters (song names, search terms, etc.)
             val containsPolluter = appNamePolluters.any { rawAppName.contains(it) }
-            // Reject if the "app name" is multiple words with non-app content
             val tokenCount = rawAppName.split(" ").size
-            val likelySentence = tokenCount > 4
-            if (rawAppName.isNotEmpty() && !containsPolluter && !likelySentence && blacklisted.none { rawAppName.contains(it) }) {
+            val isKnownMultiWord = rawAppName in listOf("google maps", "play store", "google chrome", "youtube music", "apple music")
+            // Reject if the "app name" has multiple words unless it's a known multi-word app
+            if (rawAppName.isNotEmpty() && !containsPolluter && (tokenCount <= 2 || isKnownMultiWord) && blacklisted.none { rawAppName.contains(it) }) {
                 // Strip postposition suffix from app name before storing
                 val firstWord = rawAppName.split(" ").first()
                 val cleanedAppName = AppNameExtractor.extract(firstWord)

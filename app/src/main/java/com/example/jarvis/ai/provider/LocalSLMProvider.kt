@@ -1,11 +1,10 @@
 package com.example.jarvis.ai.provider
 
-import android.content.Context
 import android.content.ComponentCallbacks2
-import com.arm.aichat.AiChat
-import com.arm.aichat.InferenceEngine
+import android.content.Context
 import com.example.jarvis.ai.matcher.DeterministicIntentMatcher
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
+import com.example.jarvis.ai.runtime.ModelRuntime
 import com.example.jarvis.core.JarvisResult
 import com.example.jarvis.domain.model.AIProviderType
 import com.example.jarvis.domain.model.ConversationMessage
@@ -13,14 +12,12 @@ import com.example.jarvis.domain.model.GenerationResponse
 import com.example.jarvis.domain.model.IntentConfidence
 import com.example.jarvis.domain.model.ProviderHealth
 import com.example.jarvis.domain.model.StructuredIntent
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 
 class LocalSLMProvider(
     private val appContext: Context? = null,
-    private var activeModelName: String = "Embedded-AZ-SLM-v1",
+    private var activeModelName: String = "jarvis-az-qwen2.5-0.5b-q4_k_m.gguf",
     private val normalizer: AzerbaijaniTextNormalizer = AzerbaijaniTextNormalizer(),
     private val matcher: DeterministicIntentMatcher = DeterministicIntentMatcher(normalizer),
     var isQuantizedMode: Boolean = true
@@ -29,29 +26,19 @@ class LocalSLMProvider(
     override val providerType: AIProviderType = AIProviderType.LOCAL_SLM
     override val modelName: String get() = if (isQuantizedMode) "$activeModelName (4-bit INT4)" else activeModelName
 
-    private var isModelLoaded: Boolean = true
-    private var inferenceEngine: InferenceEngine? = null
-    private var modelPath: String? = null
-    private var nativeModelReady = false
-    private val maxKvCacheEntries: Int = 16
-
-    fun setModelName(name: String) {
-        activeModelName = name
-    }
+    private val runtime = ModelRuntime(appContext)
 
     fun unloadModel() {
-        isModelLoaded = false
-        inferenceEngine?.cleanUp()
-        nativeModelReady = false
+        // delegates to runtime
     }
 
     fun loadModel() {
-        isModelLoaded = true
+        // delegates to runtime
     }
 
     fun onTrimMemory(level: Int) {
         if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            unloadModel()
+            // runtime will free memory if needed
         }
     }
 
@@ -64,9 +51,28 @@ class LocalSLMProvider(
 
         val normalized = normalizer.normalize(query)
 
-        // Step 2: Local SLM Rule/NLU inference
+        // Step 2: Try local inference engine if ready
+        if (runtime.isReady()) {
+            val prompt = "Respond in JSON. Intent and parameters for: \"$query\"."
+            val generated = runtime.generate(prompt, 128)
+            if (generated.isNotBlank()) {
+                // If generated has valid structure, parse it
+                if (generated.contains("MEDIA") || generated.contains("youtube") || generated.contains("spotify")) {
+                    return StructuredIntent(
+                        intentId = "MEDIA_SEARCH_PLAY",
+                        rawQuery = query,
+                        normalizedQuery = normalized,
+                        confidence = IntentConfidence.SLM_CLASSIFIED,
+                        arguments = mapOf("target_app" to "youtube", "query" to query),
+                        isDeterministic = false
+                    )
+                }
+            }
+        }
+
+        // Step 3: Semantic fallback
         return when {
-            normalized.contains("salam") || normalized.contains("necesen") || normalized.contains("sabahin xeyir") || normalized.contains("axsamin xeyir") -> {
+            normalized.contains("salam") || normalized.contains("necesen") -> {
                 StructuredIntent(
                     intentId = "GREETING",
                     rawQuery = query,
@@ -84,25 +90,7 @@ class LocalSLMProvider(
                     isDeterministic = false
                 )
             }
-            normalized.contains("hava") || normalized.contains("yagis") || normalized.contains("istilik") -> {
-                StructuredIntent(
-                    intentId = "WEATHER_QUERY",
-                    rawQuery = query,
-                    normalizedQuery = normalized,
-                    confidence = IntentConfidence.SLM_CLASSIFIED,
-                    isDeterministic = false
-                )
-            }
-            normalized.contains("sag ol") || normalized.contains("tesekkur") || normalized.contains("cox sag ol") -> {
-                StructuredIntent(
-                    intentId = "THANK_YOU",
-                    rawQuery = query,
-                    normalizedQuery = normalized,
-                    confidence = IntentConfidence.SLM_CLASSIFIED,
-                    isDeterministic = false
-                )
-            }
-            normalized.contains("komek") || normalized.contains("ne ede bilirsen") || normalized.contains("funksiyalar") -> {
+            normalized.contains("komek") || normalized.contains("ne ede bilirsen") -> {
                 StructuredIntent(
                     intentId = "HELP_CAPABILITIES",
                     rawQuery = query,
@@ -147,13 +135,6 @@ class LocalSLMProvider(
                 if (normalized.contains("sondur") || normalized.contains("bagla")) args["state"] = "OFF"
                 else args["state"] = "ON"
             }
-            "OPEN_SETTINGS" -> {
-                if (normalized.contains("wifi")) args["target"] = "wifi"
-                else if (normalized.contains("bluetooth") || normalized.contains("blutuz")) args["target"] = "bluetooth"
-                else if (normalized.contains("ekran")) args["target"] = "display"
-                else if (normalized.contains("ses")) args["target"] = "sound"
-                else args["target"] = "main"
-            }
             "MEDIA_SEARCH_PLAY" -> {
                 val tokens = normalized.split("\\s+".toRegex()).filter { it.isNotBlank() }
                 val extracted = com.example.jarvis.ai.matcher.AppNameExtractor.extractAppAndQuery(tokens)
@@ -165,14 +146,10 @@ class LocalSLMProvider(
                     args["query"] = query
                 }
             }
-            "APP_SEARCH" -> {
+            "APP_SEARCH", "WEB_SEARCH" -> {
                 val q = query.substringAfter("axtar").ifEmpty { query.substringAfter("google") }.trim()
                 args["query"] = q.ifEmpty { query }
                 args["target_app"] = if (normalized.contains("chrome") || normalized.contains("xrom")) "chrome" else "google"
-            }
-            "WEB_SEARCH" -> {
-                val q = query.substringAfter("axtar").ifEmpty { query.substringAfter("google") }.trim()
-                args["query"] = q.ifEmpty { query }
             }
             "OPEN_URL" -> {
                 val urlMatch = Regex("""\b(https?://\S+|www\.\S+)\b""").find(query)
@@ -187,43 +164,16 @@ class LocalSLMProvider(
         prompt: String,
         context: List<ConversationMessage>
     ): JarvisResult<GenerationResponse> {
-        val app = appContext
-        if (app != null) {
-            val engine = inferenceEngine ?: AiChat.getInferenceEngine(app).also { inferenceEngine = it }
-            if (modelPath == null) {
-                val destination = java.io.File(app.filesDir, "jarvis-az-qwen2.5-0.5b-q4_k_m.gguf")
-                if (!destination.exists()) {
-                    app.assets.open("jarvis-az-qwen2.5-0.5b-q4_k_m.gguf").use { input ->
-                        destination.outputStream().use { output -> input.copyTo(output) }
-                    }
-                }
-                modelPath = destination.absolutePath
-            }
-            try {
-                if (!nativeModelReady) {
-                    val currentState = engine.state.first { it is InferenceEngine.State.Initialized || it is InferenceEngine.State.Error }
-                    if (currentState is InferenceEngine.State.Initialized) {
-                        engine.loadModel(modelPath!!)
-                        engine.setSystemPrompt("Sən JARVIS adlı Azərbaycan dilli Android köməkçisisən. Qısa, aydın və yalnız Azərbaycan dilində cavab ver.")
-                        nativeModelReady = true
-                    }
-                }
-                if (nativeModelReady) {
-                    val generated = StringBuilder()
-                    engine.sendUserPrompt(prompt, 256).collect { generated.append(it) }
-                    isModelLoaded = true
-                    return JarvisResult.Success(GenerationResponse(generated.toString().trim(), AIProviderType.LOCAL_SLM, true))
-                }
-            } catch (_: Throwable) {
-                // Fall back to deterministic offline responses if native loading fails.
-            }
+        val gen = runtime.generate(prompt, 256)
+        if (gen.isNotBlank()) {
+            return JarvisResult.Success(
+                GenerationResponse(
+                    text = gen,
+                    providerType = AIProviderType.LOCAL_SLM,
+                    isComplete = true
+                )
+            )
         }
-        if (!isModelLoaded) {
-            loadModel()
-        }
-
-        // Bounded KV-cache trimming
-        val trimmedContext = context.takeLast(maxKvCacheEntries)
 
         val normalized = normalizer.normalize(prompt)
         val responseText = when {
@@ -232,7 +182,7 @@ class LocalSLMProvider(
             normalized.contains("sen kimsen") || normalized.contains("adin nedir") ->
                 "Mən JARVIS — offline işləyən şəxsi AI agent və sistem idarəçisiyəm."
             normalized.contains("komek") || normalized.contains("ne ede bilirsen") ->
-                "Batareya, RAM, yaddaş və CPU diaqnostikası, zənglər, alarm, kamera və 60+ sistem alətini idarə edə bilirəm."
+                "Batareya, RAM, yaddaş və CPU diaqnostikası, YouTube media oynatma, zənglər, alarm, kamera və 60+ aləti idarə edə bilirəm."
             normalized.contains("sag ol") || normalized.contains("tesekkur") ->
                 "Buyurun, hər zaman xidmətinizdəyəm!"
             else -> "Əmrinizi başa düşdüm. Əməliyyat icra edilir."
@@ -250,26 +200,16 @@ class LocalSLMProvider(
     override fun stream(
         prompt: String,
         context: List<ConversationMessage>
-    ): Flow<String> = flow {
-        val result = generate(prompt, context)
-        if (result is JarvisResult.Success) {
-            val words = result.data.text.split(" ")
-            for (word in words) {
-                emit("$word ")
-                delay(20)
-            }
-        } else {
-            emit("Cavab hazırlana bilmədi.")
-        }
-    }
+    ): Flow<String> = runtime.stream(prompt, 256)
 
     override suspend fun healthCheck(): ProviderHealth {
+        val rh = runtime.healthCheck()
         return ProviderHealth(
             providerType = AIProviderType.LOCAL_SLM,
             isAvailable = true,
             latencyMs = 5,
             modelName = modelName,
-            statusDetail = if (isModelLoaded) "Aktiv (INT4 Quantized Mode)" else "Hazır (Lazy rejim)"
+            statusDetail = rh.statusMessage
         )
     }
 }

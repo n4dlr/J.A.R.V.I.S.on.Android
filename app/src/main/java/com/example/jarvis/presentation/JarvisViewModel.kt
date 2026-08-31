@@ -25,6 +25,8 @@ import com.example.jarvis.security.RiskManager
 import com.example.jarvis.tools.ToolRegistry
 import com.example.jarvis.voice.TextToSpeechHelper
 import com.example.jarvis.voice.VoiceRecognizerHelper
+import com.example.jarvis.voice.WakeWordDetector
+import com.example.jarvis.voice.WakeWordEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -70,6 +72,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         isEnabled = preferences.getBoolean("tts_enabled", false)
     }
 
+    // Wake word detector (hands-free "Hey JARVIS" / "JARVIS" activation)
+    val wakeWordDetector = WakeWordDetector(context, voiceHelper, normalizer)
+
     // RAG Engine
     val ragEngine = RAGEngine(repository)
 
@@ -94,7 +99,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             permissionStatuses = permissionManager.getAllPermissionStatuses(),
             isLowRamModeEnforced = lowRamManager.isLowRamEnvironment(),
             isTtsEnabled = preferences.getBoolean("tts_enabled", false),
-            hasGeminiApiKey = storedGeminiApiKey.isNotBlank()
+            hasGeminiApiKey = storedGeminiApiKey.isNotBlank(),
+            activeLanguage = preferences.getString("active_language", "az-AZ") ?: "az-AZ"
         )
     )
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -126,7 +132,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             voiceHelper.speechError.collect { error ->
-                _uiState.update { it.copy(speechError = error) }
+                _uiState.update { it.copy(speechError = error, executionStage = null) }
             }
         }
         viewModelScope.launch {
@@ -138,6 +144,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             lowRamManager.telemetry.collect { telemetry ->
                 _uiState.update { it.copy(telemetry = telemetry) }
             }
+        }
+
+        // Restore wake word state from preferences
+        val savedWakeWord = preferences.getBoolean("wake_word_enabled", false)
+        if (savedWakeWord) {
+            _uiState.update { it.copy(isWakeWordEnabled = true) }
+            startWakeWordListening()
         }
 
         // Initial health check & history preload
@@ -153,13 +166,47 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun startVoiceListening() {
         ttsHelper.stop()
-        voiceHelper.startListening { recognizedText ->
+        val loc = _uiState.value.activeLanguage
+        _uiState.update { it.copy(executionStage = "LISTENING") }
+        voiceHelper.startListening(loc) { recognizedText ->
             processUserCommand(recognizedText)
         }
     }
 
     fun stopVoiceListening() {
         voiceHelper.stopListening()
+        _uiState.update { it.copy(executionStage = null) }
+    }
+
+    // ── Wake Word ─────────────────────────────────────────────────────────────
+
+    fun toggleWakeWordMode(enabled: Boolean) {
+        preferences.edit().putBoolean("wake_word_enabled", enabled).apply()
+        _uiState.update { it.copy(isWakeWordEnabled = enabled) }
+        if (enabled) {
+            startWakeWordListening()
+        } else {
+            wakeWordDetector.stopContinuousHotwordListening()
+        }
+    }
+
+    private fun startWakeWordListening() {
+        val locale = _uiState.value.activeLanguage
+        wakeWordDetector.startContinuousHotwordListening(locale = locale) { event ->
+            when (event) {
+                is WakeWordEvent.WakeWordOnly -> {
+                    // Wake word only → start active listening session
+                    ttsHelper.speak("Bəli, əmrinizi gözləyirəm.")
+                    viewModelScope.launch(Dispatchers.Main) {
+                        startVoiceListening()
+                    }
+                }
+                is WakeWordEvent.WakeWordWithCommand -> {
+                    // Wake word + inline command → process immediately
+                    processUserCommand(event.command)
+                }
+            }
+        }
     }
 
     fun setTtsEnabled(enabled: Boolean) {
@@ -175,6 +222,11 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.IO) { refreshProviderHealth() }
     }
 
+    fun setActiveLanguage(localeTag: String) {
+        preferences.edit().putString("active_language", localeTag).apply()
+        _uiState.update { it.copy(activeLanguage = localeTag) }
+    }
+
     fun submitTextCommand() {
         val query = _uiState.value.currentInputText.trim()
         if (query.isNotBlank()) {
@@ -185,16 +237,30 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun processUserCommand(query: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(isProcessing = true, speechError = null) }
+            _uiState.update {
+                it.copy(
+                    isProcessing = true,
+                    speechError = null,
+                    executionStage = "UNDERSTANDING"
+                )
+            }
 
-            val output = commandPipeline.processCommand(query, isConfirmed = false)
+            val output = commandPipeline.processCommand(
+                rawInput = query,
+                isConfirmed = false,
+                onStateChange = { stage ->
+                    _uiState.update { it.copy(executionStage = stage) }
+                }
+            )
 
             when (output) {
                 is PipelineOutput.Executed -> {
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
+                            executionStage = "COMPLETED",
                             lastToolResult = output.toolResult,
+                            diagnosticsTrace = output.diagnostics,
                             pendingConfirmation = null
                         )
                     }
@@ -203,6 +269,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
+                            executionStage = null,
                             pendingConfirmation = output.confirmation
                         )
                     }
@@ -211,6 +278,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
+                            executionStage = "COMPLETED",
+                            diagnosticsTrace = output.diagnostics,
                             pendingConfirmation = null
                         )
                     }
@@ -219,7 +288,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
-                            speechError = output.reason
+                            executionStage = "FAILED",
+                            speechError = output.reason,
+                            diagnosticsTrace = output.diagnostics
                         )
                     }
                 }
@@ -240,18 +311,30 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun confirmPendingAction(confirmation: PendingActionConfirmation) {
         viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(pendingConfirmation = null, isProcessing = true) }
-            val output = commandPipeline.processCommand(confirmation.structuredIntent.rawQuery, isConfirmed = true)
+            _uiState.update { it.copy(pendingConfirmation = null, isProcessing = true, executionStage = "EXECUTING") }
+            val output = commandPipeline.processCommand(
+                rawInput = confirmation.structuredIntent.rawQuery,
+                isConfirmed = true,
+                onStateChange = { stage -> _uiState.update { it.copy(executionStage = stage) } }
+            )
             if (output is PipelineOutput.Executed) {
-                _uiState.update { it.copy(isProcessing = false, lastToolResult = output.toolResult, performanceMetrics = commandPipeline.performanceTracker.getMetrics()) }
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        executionStage = "COMPLETED",
+                        lastToolResult = output.toolResult,
+                        diagnosticsTrace = output.diagnostics,
+                        performanceMetrics = commandPipeline.performanceTracker.getMetrics()
+                    )
+                }
             } else {
-                _uiState.update { it.copy(isProcessing = false, performanceMetrics = commandPipeline.performanceTracker.getMetrics()) }
+                _uiState.update { it.copy(isProcessing = false, executionStage = "COMPLETED", performanceMetrics = commandPipeline.performanceTracker.getMetrics()) }
             }
         }
     }
 
     fun dismissPendingConfirmation() {
-        _uiState.update { it.copy(pendingConfirmation = null) }
+        _uiState.update { it.copy(pendingConfirmation = null, executionStage = null) }
     }
 
     fun setAIProvider(providerType: AIProviderType) {
@@ -297,6 +380,15 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun toggleDiagnosticsScreen(show: Boolean) {
+        _uiState.update {
+            it.copy(
+                showDiagnosticsScreen = show,
+                diagnosticsTrace = it.diagnosticsTrace ?: commandPipeline.getLatestDiagnostics()
+            )
+        }
+    }
+
     fun clearConversations() {
         viewModelScope.launch(Dispatchers.IO) {
             memoryManager.clearConversations()
@@ -310,6 +402,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        wakeWordDetector.stopContinuousHotwordListening()
         voiceHelper.stopListening()
         ttsHelper.shutdown()
         lowRamManager.unregister()

@@ -2,6 +2,7 @@ package com.example.jarvis.presentation.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -80,7 +83,11 @@ fun JarvisSettingsSheet(
     onClearConversations: () -> Unit,
     isTtsEnabled: Boolean,
     hasGeminiApiKey: Boolean,
+    isWakeWordEnabled: Boolean,
+    activeLanguage: String,
     onToggleTts: (Boolean) -> Unit,
+    onToggleWakeWord: (Boolean) -> Unit,
+    onSetLanguage: (String) -> Unit,
     onGeminiApiKeyChanged: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -198,6 +205,87 @@ fun JarvisSettingsSheet(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                // Wake word toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.RecordVoiceOver,
+                                contentDescription = null,
+                                tint = if (isWakeWordEnabled) JarvisCyan else JarvisTextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Əl-azad rejim (Hey JARVIS)", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "\"Hey JARVIS\" və ya \"JARVIS\" deyərək əl dəymədən aktivləşdir.",
+                            color = JarvisTextSecondary, fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isWakeWordEnabled,
+                        onCheckedChange = onToggleWakeWord,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisCyan,
+                            checkedTrackColor = JarvisDarkNavy,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = JarvisDarkVoid
+                        )
+                    )
+                }
+
+                // Language selector
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Translate,
+                        contentDescription = null,
+                        tint = JarvisCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Nitq Dili", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                val languages = listOf(
+                    "az-AZ" to "Azərbaycan dili",
+                    "tr-TR" to "Türkçe",
+                    "ru-RU" to "Русский",
+                    "en-US" to "English (US)"
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    languages.forEach { (code, label) ->
+                        val isSelected = activeLanguage == code
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) JarvisCyan.copy(alpha = 0.15f) else JarvisDarkVoid)
+                                .border(1.dp, if (isSelected) JarvisCyan else JarvisTextSecondary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .clickable { onSetLanguage(code) }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label.split(" ").first(),
+                                color = if (isSelected) JarvisCyan else JarvisTextSecondary,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+
                 Text("Açar yalnız bu cihazda saxlanır.", color = JarvisTextSecondary, fontSize = 10.sp)
             }
 

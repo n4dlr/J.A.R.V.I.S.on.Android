@@ -195,9 +195,14 @@ fun ConversationMessageBubble(message: ConversationMessage) {
 private fun StatusBadge(status: ToolStatus) {
     val (color, icon, text) = when (status) {
         ToolStatus.SUCCESS -> Triple(JarvisGreen, Icons.Default.CheckCircle, "SUCCESS")
+        ToolStatus.PARTIAL_SUCCESS -> Triple(JarvisCyan, Icons.Default.CheckCircle, "PARTIAL")
         ToolStatus.FAILED -> Triple(JarvisCrimson, Icons.Default.Error, "ERROR")
         ToolStatus.PERMISSION_REQUIRED -> Triple(JarvisAmber, Icons.Default.Lock, "AUTH")
+        ToolStatus.ACCESSIBILITY_REQUIRED -> Triple(JarvisAmber, Icons.Default.Warning, "ACCESSIBILITY")
         ToolStatus.CONFIRMATION_REQUIRED -> Triple(JarvisAmber, Icons.Default.Warning, "CONFIRM")
+        ToolStatus.VERIFICATION_FAILED -> Triple(JarvisAmber, Icons.Default.Warning, "UNVERIFIED")
+        ToolStatus.TIMEOUT -> Triple(JarvisCrimson, Icons.Default.Error, "TIMEOUT")
+        ToolStatus.CANCELLED -> Triple(Color.Gray, Icons.Default.Error, "CANCELLED")
         ToolStatus.DENIED -> Triple(JarvisCrimson, Icons.Default.Error, "DENIED")
         ToolStatus.UNSUPPORTED -> Triple(Color.Gray, Icons.Default.Error, "N/A")
     }

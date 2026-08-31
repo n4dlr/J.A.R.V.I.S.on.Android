@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.DeveloperMode
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -145,7 +146,7 @@ fun JarvisMainScreen(
                 ) {
                     Column {
                         Text(
-                            text = "NEURAL SYSTEM",
+                            text = "NEURAL SYSTEM V2",
                             color = JarvisCyan.copy(alpha = 0.9f),
                             fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
@@ -198,6 +199,57 @@ fun JarvisMainScreen(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                         }
+
+                        // Wake word active indicator
+                        if (uiState.isWakeWordEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(JarvisGreen.copy(alpha = 0.12f))
+                                    .border(1.dp, JarvisGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.VolumeUp,
+                                        contentDescription = "Həmişə-dinləmə",
+                                        tint = JarvisGreen,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "HEY JARVIS",
+                                        color = JarvisGreen,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        // Developer Diagnostics Button
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(JarvisSurfaceGlass)
+                                .border(1.dp, JarvisSurfaceGlassBorder, RoundedCornerShape(10.dp))
+                                .clickable { viewModel.toggleDiagnosticsScreen(true) }
+                                .testTag("diagnostics_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeveloperMode,
+                                contentDescription = "Developer Diagnostics",
+                                tint = JarvisCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         // Settings Icon Glass Button
                         Box(
@@ -266,6 +318,39 @@ fun JarvisMainScreen(
                         },
                         modifier = Modifier.testTag("arc_reactor_orb")
                     )
+                }
+
+                // Real-time Execution Stage Banner
+                uiState.executionStage?.let { stage ->
+                    val stageLabel = when (stage) {
+                        "LISTENING" -> "🎙 Sizi dinləyirəm..."
+                        "TRANSCRIBING" -> "✍ Səs yazıya çevrilir..."
+                        "UNDERSTANDING" -> "🧠 Əmr təhlil edilir..."
+                        "PLANNING" -> "📋 Planlaşdırılır..."
+                        "EXECUTING" -> "⚡ İcra edilir..."
+                        "VERIFYING" -> "🔍 Nəticə təsdiqlənir..."
+                        "COMPLETED" -> "✓ Əməliyyat tamamlandı"
+                        "FAILED" -> "⚠ Xəta baş verdi"
+                        else -> stage
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(JarvisCyanPrimary.copy(alpha = 0.12f))
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stageLabel,
+                            color = JarvisCyan,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 // Error Banner if present
@@ -475,7 +560,15 @@ fun JarvisMainScreen(
         )
     }
 
-    // 8. System & AI Settings Bottom Sheet
+    // 8. Developer Diagnostics Screen Modal
+    if (uiState.showDiagnosticsScreen) {
+        DiagnosticsScreen(
+            diagnostics = uiState.diagnosticsTrace,
+            onDismiss = { viewModel.toggleDiagnosticsScreen(false) }
+        )
+    }
+
+    // 9. System & AI Settings Bottom Sheet
     if (uiState.showSettingsSheet) {
         JarvisSettingsSheet(
             activeProviderType = uiState.activeProviderType,
@@ -490,10 +583,13 @@ fun JarvisMainScreen(
             onClearConversations = { viewModel.clearConversations() },
             isTtsEnabled = uiState.isTtsEnabled,
             hasGeminiApiKey = uiState.hasGeminiApiKey,
+            isWakeWordEnabled = uiState.isWakeWordEnabled,
+            activeLanguage = uiState.activeLanguage,
             onToggleTts = { viewModel.setTtsEnabled(it) },
+            onToggleWakeWord = { viewModel.toggleWakeWordMode(it) },
+            onSetLanguage = { viewModel.setActiveLanguage(it) },
             onGeminiApiKeyChanged = { viewModel.setGeminiApiKey(it) },
             onDismiss = { viewModel.toggleSettingsSheet(false) }
         )
     }
 }
-
