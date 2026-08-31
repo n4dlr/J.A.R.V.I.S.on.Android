@@ -94,9 +94,26 @@ import com.example.jarvis.tools.impl.voice.SpeakTool
 import com.example.jarvis.tools.impl.voice.StartListeningTool
 import com.example.jarvis.tools.impl.voice.StopListeningTool
 import com.example.jarvis.tools.impl.weather.GetWeatherTool
+import com.example.jarvis.tools.impl.news.GetNewsTool
+import com.example.jarvis.tools.impl.spotify.SpotifyAuthManager
+import com.example.jarvis.tools.impl.spotify.SpotifyApiClient
+import com.example.jarvis.tools.impl.spotify.SpotifyCurrentTrackTool
+import com.example.jarvis.tools.impl.spotify.SpotifyNextTool
+import com.example.jarvis.tools.impl.spotify.SpotifyPauseTool
+import com.example.jarvis.tools.impl.spotify.SpotifyPlayTool
+import com.example.jarvis.tools.impl.spotify.SpotifyPreviousTool
+import com.example.jarvis.tools.impl.smarthome.SmartHomeClimateTool
+import com.example.jarvis.tools.impl.smarthome.SmartHomeLightTool
+import com.example.jarvis.tools.impl.smarthome.SmartHomeLockTool
+import com.example.jarvis.tools.impl.smarthome.SmartHomeSceneTool
+import com.example.jarvis.tools.impl.smarthome.HomeAssistantClient
 import java.util.concurrent.ConcurrentHashMap
 
-class ToolRegistry {
+class ToolRegistry(
+    private val spotifyClientId: String = "",
+    private val haServerUrl: String = "",
+    private val haToken: String = ""
+) {
 
     private val toolsMap = ConcurrentHashMap<String, Tool>()
 
@@ -248,6 +265,38 @@ class ToolRegistry {
 
         // --- VISION AI ---
         register(AnalyzePhotoTool())
+
+        // --- NEWS ---
+        register(GetNewsTool())
+    }
+
+    /** Call this after Context is available to register context-dependent tools. */
+    fun registerContextDependentTools(context: android.content.Context) {
+        // Spotify tools
+        val auth = SpotifyAuthManager(context)
+        val client = SpotifyApiClient(auth)
+        register(SpotifyPlayTool(auth, client))
+        register(SpotifyPauseTool(auth, client))
+        register(SpotifyNextTool(auth, client))
+        register(SpotifyPreviousTool(auth, client))
+        register(SpotifyCurrentTrackTool(auth, client))
+
+        // Smart Home tools
+        val haUrl = context.getSharedPreferences("jarvis_settings", android.content.Context.MODE_PRIVATE)
+            .getString("ha_server_url", "") ?: ""
+        val haToken = context.getSharedPreferences("jarvis_settings", android.content.Context.MODE_PRIVATE)
+            .getString("ha_token", "") ?: ""
+        val getClient: (android.content.Context) -> HomeAssistantClient = { ctx ->
+            val url = ctx.getSharedPreferences("jarvis_settings", android.content.Context.MODE_PRIVATE)
+                .getString("ha_server_url", "") ?: ""
+            val tok = ctx.getSharedPreferences("jarvis_settings", android.content.Context.MODE_PRIVATE)
+                .getString("ha_token", "") ?: ""
+            HomeAssistantClient(url, tok)
+        }
+        register(SmartHomeLightTool(getClient))
+        register(SmartHomeClimateTool(getClient))
+        register(SmartHomeLockTool(getClient))
+        register(SmartHomeSceneTool(getClient))
     }
 
     fun register(tool: Tool) {

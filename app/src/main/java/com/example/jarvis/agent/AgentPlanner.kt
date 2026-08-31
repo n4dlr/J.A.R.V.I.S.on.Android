@@ -3,7 +3,8 @@ package com.example.jarvis.agent
 import com.example.jarvis.ai.normalizer.AzerbaijaniTextNormalizer
 
 class AgentPlanner(
-    private val normalizer: AzerbaijaniTextNormalizer = AzerbaijaniTextNormalizer()
+    private val normalizer: AzerbaijaniTextNormalizer = AzerbaijaniTextNormalizer(),
+    private val multiStepEngine: MultiStepAgentEngine = MultiStepAgentEngine(AzerbaijaniTextNormalizer())
 ) {
 
     private val diagnosticPatterns = listOf(
@@ -12,15 +13,12 @@ class AgentPlanner(
         Regex("""(?i)\b(problem\s*varmi|sistem\s*diaqnostikasi|tam\s*yoxlanis)\b""")
     )
 
-    private val compositeAndPatterns = listOf(
-        Regex("""(?i)\b(.+?)\s+ve\s+(.+)\b""")
-    )
-
     /** Check if a query warrants multi-step agent planning. */
     fun shouldPlan(rawQuery: String): Boolean {
         val normalized = normalizer.normalize(rawQuery)
-        return diagnosticPatterns.any { it.containsMatchIn(normalized) } ||
-               (normalized.contains("ve") && normalized.length > 10)
+        val isDiagnostic = diagnosticPatterns.any { it.containsMatchIn(normalized) }
+        val isMultiStep = multiStepEngine.isMultiStep(rawQuery)
+        return isDiagnostic || isMultiStep
     }
 
     /** Generate an [AgentPlan] for the user's high-level goal. */
@@ -34,7 +32,7 @@ class AgentPlanner(
                 rationale = "Cihazın ümumi vəziyyətini, RAM, CPU, yaddaş və batareya göstəricilərini ardıcıl yoxlayıb analiz etmək.",
                 steps = listOf(
                     PlanStep("step_1", "GET_RAM", description = "RAM istifadəsini yoxla"),
-                    PlanStep("step_2", "CPU_STATUS", description = "CPU yükünü və temperaturunu yoxla"),
+                    PlanStep("step_2", "CPU_STATUS", description = "CPU yükünü yoxla"),
                     PlanStep("step_3", "GET_STORAGE", description = "Daxili yaddaşın boş yerini yoxla"),
                     PlanStep("step_4", "BATTERY_STATUS", description = "Batareya səviyyəsi və temperaturunu yoxla"),
                     PlanStep("step_5", "NETWORK_STATUS", description = "Şəbəkə bağlantısını yoxla")
@@ -42,7 +40,12 @@ class AgentPlanner(
             )
         }
 
-        // 2. Default Single-step Plan
+        // 2. Multi-step NLU Plan (e.g. "Instagram-a gir, son posta bax, şərh yaz")
+        if (multiStepEngine.isMultiStep(rawQuery)) {
+            return multiStepEngine.parse(rawQuery)
+        }
+
+        // 3. Default Single-step Plan (fallback)
         return AgentPlan(
             goal = rawQuery,
             rationale = "Birbaşa əmr icrası planı.",

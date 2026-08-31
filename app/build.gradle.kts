@@ -100,10 +100,25 @@ android {
       version = "3.28.3"
     }
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions { 
+    unitTests { 
+      isIncludeAndroidResources = true
+      isReturnDefaultValues = true
+    } 
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
+  }
+  packaging {
+    resources {
+      excludes += listOf(
+        "/META-INF/{AL2.0,LGPL2.1}",
+        "/META-INF/INDEX.LIST",
+        "/META-INF/io.netty.versions.properties",
+        "/META-INF/DEPENDENCIES"
+      )
+    }
   }
 }
 
@@ -181,4 +196,10 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+  // WorkManager for scheduled background tasks (Morning Briefing)
+  implementation(libs.work.runtime.ktx)
+  // Vosk offline STT (Azerbaijani language model)
+  implementation(libs.vosk.android)
+  // HiveMQ MQTT client for Smart Home IoT
+  implementation(libs.hivemq.client)
 }

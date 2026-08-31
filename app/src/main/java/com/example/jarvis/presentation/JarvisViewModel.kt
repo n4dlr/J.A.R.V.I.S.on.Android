@@ -26,11 +26,23 @@ import com.example.jarvis.tools.ToolRegistry
 import com.example.jarvis.ai.runtime.ModelDownloadManager
 import com.example.jarvis.ai.runtime.ModelDownloadState
 import com.example.jarvis.services.JarvisNotificationListenerService
+import com.example.jarvis.voice.ContinuousVoiceSession
 import com.example.jarvis.voice.ShakeDetector
 import com.example.jarvis.voice.TextToSpeechHelper
 import com.example.jarvis.voice.VoiceRecognizerHelper
+import com.example.jarvis.voice.VoskModelManager
+import com.example.jarvis.voice.VoskModelManager.VoskDownloadState
 import com.example.jarvis.voice.WakeWordDetector
 import com.example.jarvis.voice.WakeWordEvent
+import com.example.jarvis.voice.NeuralTtsManager
+import com.example.jarvis.voice.NeuralVoiceGender
+import com.example.jarvis.tools.impl.spotify.SpotifyAuthManager
+import com.example.jarvis.scheduler.MorningBriefingWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -68,11 +80,23 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private var activeProvider: AIProvider = fallbackProvider
 
     // Tool Registry
-    val toolRegistry = ToolRegistry()
+    val toolRegistry = ToolRegistry().also { it.registerContextDependentTools(context) }
+
+    // Vosk Offline STT Manager
+    val voskModelManager = VoskModelManager(context)
+
+    // Spotify Auth Manager
+    val spotifyAuthManager = SpotifyAuthManager(context)
+
+    // Local Offline Vision Manager (SmolVLM / Moondream GGUF ~290MB)
+    val localVisionManager = com.example.jarvis.ai.vision.LocalVisionManager(context)
+
+    // Neural TTS Manager (Piper / Sherpa-ONNX custom Azerbaijani voice)
+    val neuralTtsManager = NeuralTtsManager(context)
 
     // Voice & TTS
     val voiceHelper = VoiceRecognizerHelper(context)
-    val ttsHelper = TextToSpeechHelper(context).apply {
+    val ttsHelper = TextToSpeechHelper(context, neuralTtsManager).apply {
         isEnabled = preferences.getBoolean("tts_enabled", false)
     }
 
@@ -88,6 +112,9 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             startVoiceListening()
         }
     }
+
+    // Continuous Voice Session (hands-free duplex mode)
+    private var continuousSession: ContinuousVoiceSession? = null
 
     // RAG Engine
     val ragEngine = RAGEngine(repository)
@@ -117,7 +144,17 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             activeLanguage = preferences.getString("active_language", "az-AZ") ?: "az-AZ",
             isShakeToWakeEnabled = preferences.getBoolean("shake_to_wake_enabled", false),
             isNotificationReadoutEnabled = preferences.getBoolean("notif_readout_enabled", false),
-            isModelDownloaded = modelDownloadManager.isModelDownloaded()
+            isModelDownloaded = modelDownloadManager.isModelDownloaded(),
+            isVoskModelReady = voskModelManager.isModelReady(),
+            isMorningBriefingEnabled = preferences.getBoolean("morning_briefing_enabled", false),
+            briefingHour = preferences.getInt("briefing_hour", 8),
+            isSpotifyAuthenticated = spotifyAuthManager.isAuthenticated(),
+            isSpotifyConfigured = spotifyAuthManager.isConfigured(),
+            isHomeAssistantConfigured = preferences.getString("ha_server_url", "")?.isNotBlank() == true,
+            homeAssistantServerUrl = preferences.getString("ha_server_url", "") ?: "",
+            isLocalVisionReady = localVisionManager.isModelReady(),
+            isNeuralTtsReady = neuralTtsManager.isModelReady(),
+            activeNeuralVoice = neuralTtsManager.activeGender.titleAz
         )
     )
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -202,6 +239,65 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
             }
+        }
+
+        // Observe Vosk model download state
+        viewModelScope.launch {
+            voskModelManager.downloadState.collect { dState ->
+                when (dState) {
+                    is VoskDownloadState.Idle ->
+                        _uiState.update { it.copy(voskDownloadProgress = null, isVoskModelReady = voskModelManager.isModelReady()) }
+                    is VoskDownloadState.Downloading ->
+                        _uiState.update { it.copy(voskDownloadProgress = dState.progressPercent) }
+                    is VoskDownloadState.Completed -> {
+                        _uiState.update { it.copy(voskDownloadProgress = null, isVoskModelReady = true) }
+                        ttsHelper.speak("Offline Azərbaycan nitq tanıma modeli yükləndi.")
+                    }
+                    is VoskDownloadState.Failed ->
+                        _uiState.update { it.copy(voskDownloadProgress = null) }
+                }
+            }
+        }
+
+        // Observe Local Vision model download state
+        viewModelScope.launch {
+            localVisionManager.downloadState.collect { vState ->
+                when (vState) {
+                    is com.example.jarvis.ai.vision.LocalVisionManager.VisionDownloadState.Idle ->
+                        _uiState.update { it.copy(localVisionDownloadProgress = null, isLocalVisionReady = localVisionManager.isModelReady()) }
+                    is com.example.jarvis.ai.vision.LocalVisionManager.VisionDownloadState.Downloading ->
+                        _uiState.update { it.copy(localVisionDownloadProgress = vState.progressPercent) }
+                    is com.example.jarvis.ai.vision.LocalVisionManager.VisionDownloadState.Completed -> {
+                        _uiState.update { it.copy(localVisionDownloadProgress = null, isLocalVisionReady = true) }
+                        ttsHelper.speak("Lokal Offline Vision modeli yükləndi.")
+                    }
+                    is com.example.jarvis.ai.vision.LocalVisionManager.VisionDownloadState.Failed ->
+                        _uiState.update { it.copy(localVisionDownloadProgress = null) }
+                }
+            }
+        }
+
+        // Observe Neural TTS model download state
+        viewModelScope.launch {
+            neuralTtsManager.downloadState.collect { nState ->
+                when (nState) {
+                    is NeuralTtsManager.NeuralDownloadState.Idle ->
+                        _uiState.update { it.copy(neuralTtsDownloadProgress = null, isNeuralTtsReady = neuralTtsManager.isModelReady()) }
+                    is NeuralTtsManager.NeuralDownloadState.Downloading ->
+                        _uiState.update { it.copy(neuralTtsDownloadProgress = nState.progressPercent) }
+                    is NeuralTtsManager.NeuralDownloadState.Completed -> {
+                        _uiState.update { it.copy(neuralTtsDownloadProgress = null, isNeuralTtsReady = true) }
+                        ttsHelper.speak("Xüsusi Azərbaycan neyron səsi uğurla yükləndi.")
+                    }
+                    is NeuralTtsManager.NeuralDownloadState.Failed ->
+                        _uiState.update { it.copy(neuralTtsDownloadProgress = null) }
+                }
+            }
+        }
+
+        // Restore morning briefing schedule
+        if (preferences.getBoolean("morning_briefing_enabled", false)) {
+            scheduleMorningBriefing(preferences.getInt("briefing_hour", 8))
         }
 
         // Initial health check & history preload
@@ -483,8 +579,165 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(providerHealth = health) }
     }
 
+    // ── Continuous Voice Session ───────────────────────────────────────────────
+
+    fun startContinuousSession() {
+        if (_uiState.value.isContinuousSessionActive) return
+        ttsHelper.speak("Davamlı danışıq rejimi başladı. Əmrlərimi dinləyirəm. Bitirmək üçün 'saxla' deyin.")
+        val locale = _uiState.value.activeLanguage
+        continuousSession = ContinuousVoiceSession(
+            context = context,
+            voiceHelper = voiceHelper,
+            ttsHelper = ttsHelper,
+            normalizer = normalizer,
+            onCommand = { query -> processUserCommandSuspend(query) },
+            onSessionStarted = { _uiState.update { it.copy(isContinuousSessionActive = true) } },
+            onSessionStopped = { _uiState.update { it.copy(isContinuousSessionActive = false) } }
+        )
+        continuousSession?.start(locale)
+    }
+
+    fun stopContinuousSession() {
+        continuousSession?.stop()
+        continuousSession = null
+        _uiState.update { it.copy(isContinuousSessionActive = false) }
+    }
+
+    private suspend fun processUserCommandSuspend(query: String) {
+        _uiState.update { it.copy(isProcessing = true, executionStage = "UNDERSTANDING") }
+        val output = commandPipeline.processCommand(
+            rawInput = query,
+            isConfirmed = false,
+            onStateChange = { stage -> _uiState.update { it.copy(executionStage = stage) } }
+        )
+        _uiState.update { it.copy(isProcessing = false, executionStage = "COMPLETED") }
+    }
+
+    // ── Morning Briefing ──────────────────────────────────────────────────────
+
+    fun toggleMorningBriefing(enabled: Boolean, hour: Int = _uiState.value.briefingHour) {
+        preferences.edit()
+            .putBoolean("morning_briefing_enabled", enabled)
+            .putInt("briefing_hour", hour)
+            .apply()
+        _uiState.update { it.copy(isMorningBriefingEnabled = enabled, briefingHour = hour) }
+        if (enabled) scheduleMorningBriefing(hour)
+        else WorkManager.getInstance(context).cancelUniqueWork(MorningBriefingWorker.WORK_NAME)
+    }
+
+    private fun scheduleMorningBriefing(hour: Int) {
+        val now = Calendar.getInstance()
+        val target = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            if (before(now)) add(Calendar.DAY_OF_YEAR, 1)
+        }
+        val initialDelayMs = target.timeInMillis - now.timeInMillis
+
+        val request = PeriodicWorkRequestBuilder<MorningBriefingWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            MorningBriefingWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
+    }
+
+    // ── Vosk Offline STT ──────────────────────────────────────────────────────
+
+    fun downloadVoskModel() {
+        viewModelScope.launch(Dispatchers.IO) {
+            voskModelManager.downloadModel()
+        }
+    }
+
+    fun deleteVoskModel() {
+        voskModelManager.deleteModel()
+        _uiState.update { it.copy(isVoskModelReady = false) }
+    }
+
+    // ── Spotify Auth ──────────────────────────────────────────────────────────
+
+    fun startSpotifyLogin() {
+        spotifyAuthManager.openAuthInBrowser()
+    }
+
+    fun handleSpotifyCallback(code: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = spotifyAuthManager.handleCallback(code)
+            _uiState.update {
+                it.copy(
+                    isSpotifyAuthenticated = spotifyAuthManager.isAuthenticated(),
+                    isSpotifyConfigured = spotifyAuthManager.isConfigured()
+                )
+            }
+            if (success) ttsHelper.speak("Spotify hesabına uğurla daxil oldunuz.")
+        }
+    }
+
+    fun logoutSpotify() {
+        spotifyAuthManager.logout()
+        _uiState.update { it.copy(isSpotifyAuthenticated = false) }
+    }
+
+    // ── Home Assistant Config ─────────────────────────────────────────────────
+
+    fun saveHomeAssistantConfig(serverUrl: String, token: String) {
+        preferences.edit()
+            .putString("ha_server_url", serverUrl.trim())
+            .putString("ha_token", token.trim())
+            .apply()
+        // Re-register HA tools with new credentials
+        toolRegistry.registerContextDependentTools(context)
+        _uiState.update {
+            it.copy(
+                isHomeAssistantConfigured = serverUrl.isNotBlank() && token.isNotBlank(),
+                homeAssistantServerUrl = serverUrl
+            )
+        }
+        if (serverUrl.isNotBlank() && token.isNotBlank()) {
+            ttsHelper.speak("Home Assistant konfigureyşını yadda saxladım.")
+        }
+    }
+
+    // ── Local Vision SLM ─────────────────────────────────────────────────────
+
+    fun downloadLocalVisionModel() {
+        viewModelScope.launch(Dispatchers.IO) {
+            localVisionManager.downloadModel()
+        }
+    }
+
+    fun deleteLocalVisionModel() {
+        localVisionManager.deleteModel()
+        _uiState.update { it.copy(isLocalVisionReady = false) }
+    }
+
+    // ── Custom Azerbaijani Neural Voice (Piper/Sherpa) ────────────────────────
+
+    fun downloadNeuralTtsModel() {
+        viewModelScope.launch(Dispatchers.IO) {
+            neuralTtsManager.downloadModel()
+        }
+    }
+
+    fun deleteNeuralTtsModel() {
+        neuralTtsManager.deleteModel()
+        _uiState.update { it.copy(isNeuralTtsReady = false) }
+    }
+
+    fun setNeuralVoiceGender(gender: NeuralVoiceGender) {
+        neuralTtsManager.activeGender = gender
+        _uiState.update { it.copy(activeNeuralVoice = gender.titleAz) }
+        ttsHelper.speak("Səs profili dəyişdirildi: ${gender.titleAz}")
+    }
+
     override fun onCleared() {
         super.onCleared()
+        continuousSession?.stop()
         shakeDetector.stop()
         wakeWordDetector.stopContinuousHotwordListening()
         voiceHelper.stopListening()

@@ -96,6 +96,22 @@ fun JarvisSettingsSheet(
     isModelDownloaded: Boolean = false,
     modelDownloadProgress: Int? = null,
     modelDownloadError: String? = null,
+    // Phase 6 params
+    isContinuousSessionActive: Boolean = false,
+    isMorningBriefingEnabled: Boolean = false,
+    briefingHour: Int = 8,
+    isVoskModelReady: Boolean = false,
+    voskDownloadProgress: Int? = null,
+    isSpotifyAuthenticated: Boolean = false,
+    isSpotifyConfigured: Boolean = false,
+    isHomeAssistantConfigured: Boolean = false,
+    homeAssistantServerUrl: String = "",
+    // Phase 7 params
+    isLocalVisionReady: Boolean = false,
+    localVisionDownloadProgress: Int? = null,
+    isNeuralTtsReady: Boolean = false,
+    neuralTtsDownloadProgress: Int? = null,
+    activeNeuralVoice: String = "JARVIS Kişi Səsi (Studiya)",
     onToggleTts: (Boolean) -> Unit,
     onToggleWakeWord: (Boolean) -> Unit,
     onSetLanguage: (String) -> Unit,
@@ -104,10 +120,27 @@ fun JarvisSettingsSheet(
     onDownloadModel: () -> Unit = {},
     onDeleteModel: () -> Unit = {},
     onGeminiApiKeyChanged: (String) -> Unit,
+    // Phase 6 callbacks
+    onToggleContinuousSession: () -> Unit = {},
+    onToggleMorningBriefing: (Boolean, Int) -> Unit = { _, _ -> },
+    onDownloadVoskModel: () -> Unit = {},
+    onDeleteVoskModel: () -> Unit = {},
+    onStartSpotifyLogin: () -> Unit = {},
+    onLogoutSpotify: () -> Unit = {},
+    onSaveHomeAssistantConfig: (String, String) -> Unit = { _, _ -> },
+    // Phase 7 callbacks
+    onDownloadLocalVisionModel: () -> Unit = {},
+    onDeleteLocalVisionModel: () -> Unit = {},
+    onDownloadNeuralTtsModel: () -> Unit = {},
+    onDeleteNeuralTtsModel: () -> Unit = {},
+    onSelectNeuralVoice: (com.example.jarvis.voice.NeuralVoiceGender) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var apiKey by remember { mutableStateOf("") }
+    var haUrl by remember { mutableStateOf(homeAssistantServerUrl) }
+    var haToken by remember { mutableStateOf("") }
+
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -461,10 +494,365 @@ fun JarvisSettingsSheet(
                     )
                 }
 
-                Text("Açar yalnız bu cihazda saxlanır.", color = JarvisTextSecondary, fontSize = 10.sp)
+                // Continuous Duplex Voice Session Toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.RecordVoiceOver,
+                                contentDescription = null,
+                                tint = if (isContinuousSessionActive) JarvisCyan else JarvisTextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Davamlı Danışıq Rejimi", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "Kəsilməz canlı dialoq — 'saxla' deyənə qədər aktiv qalır.",
+                            color = JarvisTextSecondary, fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isContinuousSessionActive,
+                        onCheckedChange = { onToggleContinuousSession() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisCyan,
+                            checkedTrackColor = JarvisDarkNavy,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = JarvisDarkVoid
+                        )
+                    )
+                }
+
+                // Morning Briefing Toggle
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Səhər Brifinqi (Saat 08:00)", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Hər səhər hava, təqvim və son xəbərləri səsləndirir.",
+                            color = JarvisTextSecondary, fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = isMorningBriefingEnabled,
+                        onCheckedChange = { onToggleMorningBriefing(it, briefingHour) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisCyan,
+                            checkedTrackColor = JarvisDarkNavy,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = JarvisDarkVoid
+                        )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 1b. Vosk Offline STT Model Card
+            Text(
+                text = "OFFLINE AZƏRBAYCAN STT (VOSK)",
+                color = JarvisTextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Vosk az-AZ Modeli (~50 MB)",
+                            color = JarvisTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isVoskModelReady) "Status: Yüklənib, Offline STT Hazırdır"
+                                   else "İnternet olmadan səs tanımaq üçün tələb olunur.",
+                            color = if (isVoskModelReady) JarvisGreen else JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (isVoskModelReady) {
+                        IconButton(onClick = onDeleteVoskModel) {
+                            Icon(Icons.Default.Delete, contentDescription = "Modeli Sil", tint = JarvisCrimson)
+                        }
+                    } else if (voskDownloadProgress != null) {
+                        CircularProgressIndicator(
+                            progress = { (voskDownloadProgress ?: 0) / 100f },
+                            modifier = Modifier.size(24.dp),
+                            color = JarvisCyan
+                        )
+                    } else {
+                        Button(
+                            onClick = onDownloadVoskModel,
+                            colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid)
+                        ) {
+                            Text("Yüklə", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 1b2. Local Offline Vision SLM Card
+            Text(
+                text = "LOKAL OFFLINE VISION MODELİ (SMOLVLM / MOONDREAM)",
+                color = JarvisTextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "SmolVLM / Moondream GGUF (~290 MB)",
+                            color = JarvisTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isLocalVisionReady) "Status: Yüklənib, Offline Vision Hazırdır"
+                                   else "İnternet olmadan kameradan şəkilləri analiz etmək üçün.",
+                            color = if (isLocalVisionReady) JarvisGreen else JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (isLocalVisionReady) {
+                        IconButton(onClick = onDeleteLocalVisionModel) {
+                            Icon(Icons.Default.Delete, contentDescription = "Modeli Sil", tint = JarvisCrimson)
+                        }
+                    } else if (localVisionDownloadProgress != null) {
+                        CircularProgressIndicator(
+                            progress = { (localVisionDownloadProgress ?: 0) / 100f },
+                            modifier = Modifier.size(24.dp),
+                            color = JarvisCyan
+                        )
+                    } else {
+                        Button(
+                            onClick = onDownloadLocalVisionModel,
+                            colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid)
+                        ) {
+                            Text("Yüklə", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 1b3. Custom Azerbaijani Neural Voice Card (Piper / Sherpa-ONNX)
+            Text(
+                text = "XÜSUSİ AZƏRBAYCAN NEYRON SƏSİ (PIPER / SHERPA-ONNX)",
+                color = JarvisTextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "JARVIS Neyron Səs Modeli (~45 MB)",
+                            color = JarvisTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isNeuralTtsReady) "Aktiv Səs: $activeNeuralVoice"
+                                   else "Studiya keyfiyyətli xüsusi Azərbaycan səsi.",
+                            color = if (isNeuralTtsReady) JarvisGreen else JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (isNeuralTtsReady) {
+                        IconButton(onClick = onDeleteNeuralTtsModel) {
+                            Icon(Icons.Default.Delete, contentDescription = "Səsi Sil", tint = JarvisCrimson)
+                        }
+                    } else if (neuralTtsDownloadProgress != null) {
+                        CircularProgressIndicator(
+                            progress = { (neuralTtsDownloadProgress ?: 0) / 100f },
+                            modifier = Modifier.size(24.dp),
+                            color = JarvisCyan
+                        )
+                    } else {
+                        Button(
+                            onClick = onDownloadNeuralTtsModel,
+                            colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid)
+                        ) {
+                            Text("Yüklə", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (isNeuralTtsReady) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.JARVIS_MALE) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Kişi Səsi", fontSize = 11.sp, color = JarvisCyan)
+                        }
+                        OutlinedButton(
+                            onClick = { onSelectNeuralVoice(com.example.jarvis.voice.NeuralVoiceGender.AYLA_FEMALE) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Qadın Səsi", fontSize = 11.sp, color = JarvisCyan)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+
+            // 1c. Spotify Integration Card
+            Text(
+                text = "SPOTIFY INTEGRASİYASI",
+                color = JarvisTextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Spotify Hesabı", color = JarvisTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (isSpotifyAuthenticated) "Status: Qoşulub ✅" else "OAuth 2.0 PKCE ilə birbaşa nəzarət",
+                            color = if (isSpotifyAuthenticated) JarvisGreen else JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (isSpotifyAuthenticated) {
+                        OutlinedButton(onClick = onLogoutSpotify) {
+                            Text("Çıxış", color = JarvisCrimson, fontSize = 11.sp)
+                        }
+                    } else {
+                        Button(
+                            onClick = onStartSpotifyLogin,
+                            colors = ButtonDefaults.buttonColors(containerColor = JarvisGreen, contentColor = Color.White)
+                        ) {
+                            Text("Daxil Ol", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 1d. Smart Home (Home Assistant) Card
+            Text(
+                text = "AĞILLI EV (HOME ASSISTANT)",
+                color = JarvisTextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisSurfaceCard)
+                    .border(1.dp, JarvisSurfaceCardBorder, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = haUrl,
+                    onValueChange = { haUrl = it },
+                    label = { Text("Server URL (məs: http://192.168.1.50:8123)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = haToken,
+                    onValueChange = { haToken = it },
+                    label = { Text("Long-lived Access Token") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onSaveHomeAssistantConfig(haUrl, haToken) },
+                    colors = ButtonDefaults.buttonColors(containerColor = JarvisCyan, contentColor = JarvisDarkVoid),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Konfiqurasiyanı Yadda Saxla", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
 
             // 2. RAM & Performance Management
             Text(

@@ -16,9 +16,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleSpotifyIntent(intent)
         setContent {
             JarvisTheme {
                 JarvisMainScreen(viewModel = viewModel)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleSpotifyIntent(intent)
+    }
+
+    private fun handleSpotifyIntent(intent: android.content.Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme == "jarvis" && uri.host == "spotify-callback") {
+            val code = uri.getQueryParameter("code")
+            if (!code.isNullOrBlank()) {
+                viewModel.handleSpotifyCallback(code)
             }
         }
     }

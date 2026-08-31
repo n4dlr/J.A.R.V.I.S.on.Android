@@ -590,6 +590,22 @@ fun JarvisMainScreen(
             isModelDownloaded = uiState.isModelDownloaded,
             modelDownloadProgress = uiState.modelDownloadProgress,
             modelDownloadError = uiState.modelDownloadError,
+            // Phase 6
+            isContinuousSessionActive = uiState.isContinuousSessionActive,
+            isMorningBriefingEnabled = uiState.isMorningBriefingEnabled,
+            briefingHour = uiState.briefingHour,
+            isVoskModelReady = uiState.isVoskModelReady,
+            voskDownloadProgress = uiState.voskDownloadProgress,
+            isSpotifyAuthenticated = uiState.isSpotifyAuthenticated,
+            isSpotifyConfigured = uiState.isSpotifyConfigured,
+            isHomeAssistantConfigured = uiState.isHomeAssistantConfigured,
+            homeAssistantServerUrl = uiState.homeAssistantServerUrl,
+            // Phase 7
+            isLocalVisionReady = uiState.isLocalVisionReady,
+            localVisionDownloadProgress = uiState.localVisionDownloadProgress,
+            isNeuralTtsReady = uiState.isNeuralTtsReady,
+            neuralTtsDownloadProgress = uiState.neuralTtsDownloadProgress,
+            activeNeuralVoice = uiState.activeNeuralVoice,
             onToggleTts = { viewModel.setTtsEnabled(it) },
             onToggleWakeWord = { viewModel.toggleWakeWordMode(it) },
             onSetLanguage = { viewModel.setActiveLanguage(it) },
@@ -598,6 +614,22 @@ fun JarvisMainScreen(
             onDownloadModel = { viewModel.downloadLocalModel() },
             onDeleteModel = { viewModel.deleteLocalModel() },
             onGeminiApiKeyChanged = { viewModel.setGeminiApiKey(it) },
+            onToggleContinuousSession = {
+                if (uiState.isContinuousSessionActive) viewModel.stopContinuousSession()
+                else viewModel.startContinuousSession()
+            },
+            onToggleMorningBriefing = { enabled, hour -> viewModel.toggleMorningBriefing(enabled, hour) },
+            onDownloadVoskModel = { viewModel.downloadVoskModel() },
+            onDeleteVoskModel = { viewModel.deleteVoskModel() },
+            onStartSpotifyLogin = { viewModel.startSpotifyLogin() },
+            onLogoutSpotify = { viewModel.logoutSpotify() },
+            onSaveHomeAssistantConfig = { url, token -> viewModel.saveHomeAssistantConfig(url, token) },
+            // Phase 7
+            onDownloadLocalVisionModel = { viewModel.downloadLocalVisionModel() },
+            onDeleteLocalVisionModel = { viewModel.deleteLocalVisionModel() },
+            onDownloadNeuralTtsModel = { viewModel.downloadNeuralTtsModel() },
+            onDeleteNeuralTtsModel = { viewModel.deleteNeuralTtsModel() },
+            onSelectNeuralVoice = { viewModel.setNeuralVoiceGender(it) },
             onDismiss = { viewModel.toggleSettingsSheet(false) }
         )
     }

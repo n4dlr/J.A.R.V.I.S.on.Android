@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.example.jarvis.ai.provider.GeminiProvider
+import com.example.jarvis.ai.vision.LocalVisionEngine
+import com.example.jarvis.ai.vision.LocalVisionManager
 import com.example.jarvis.core.JarvisResult
 import com.example.jarvis.domain.model.RiskLevel
 import com.example.jarvis.domain.model.ToolParameter
@@ -64,6 +66,20 @@ class AnalyzePhotoTool(
             scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
             val imageBytes = outputStream.toByteArray()
 
+            val isOnline = isInternetConnected(context)
+            val localVisionManager = LocalVisionManager(context)
+            val localVisionEngine = LocalVisionEngine(localVisionManager)
+
+            if (!isOnline || localVisionManager.isModelReady()) {
+                // Perform fast offline local vision analysis
+                val offlineAnalysis = localVisionEngine.analyze(scaledBitmap, userPrompt)
+                return@withContext ToolResult.success(
+                    toolId = id,
+                    message = offlineAnalysis,
+                    data = mapOf("imagePath" to imageFile.absolutePath, "analysis" to offlineAnalysis, "source" to "LOCAL_VISION")
+                )
+            }
+
             val analysisResult = geminiProvider.analyzeImage(imageBytes, userPrompt)
 
             return@withContext when (analysisResult) {
@@ -71,20 +87,36 @@ class AnalyzePhotoTool(
                     ToolResult.success(
                         toolId = id,
                         message = analysisResult.data,
-                        data = mapOf("imagePath" to imageFile.absolutePath, "analysis" to analysisResult.data)
+                        data = mapOf("imagePath" to imageFile.absolutePath, "analysis" to analysisResult.data, "source" to "GEMINI_CLOUD")
                     )
                 }
                 is JarvisResult.Error -> {
-                    ToolResult.failed(id, "Şəkil analizi xətası: ${analysisResult.message}")
+                    // Cloud error -> Fallback to local vision
+                    val fallbackAnalysis = localVisionEngine.analyze(scaledBitmap, userPrompt)
+                    ToolResult.success(
+                        toolId = id,
+                        message = fallbackAnalysis,
+                        data = mapOf("imagePath" to imageFile.absolutePath, "analysis" to fallbackAnalysis, "source" to "LOCAL_FALLBACK")
+                    )
                 }
                 else -> {
-                    ToolResult.failed(id, "Gözlənilməz xəta baş verdi.")
+                    val fallbackAnalysis = localVisionEngine.analyze(scaledBitmap, userPrompt)
+                    ToolResult.success(toolId = id, message = fallbackAnalysis)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Vision analysis failed: ${e.message}", e)
             return@withContext ToolResult.failed(id, "Şəkil analiz edilərkən xəta: ${e.message}")
         }
+    }
+
+    private fun isInternetConnected(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) { false }
     }
 
     private fun scaleBitmapIfNeeded(bitmap: Bitmap, maxDimension: Int): Bitmap {

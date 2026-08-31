@@ -249,6 +249,42 @@ class DeterministicIntentMatcher(
         Regex("""(?i)^\s*(bu\s*sekilde\s*ne\s*var|sekli\s*oxu|sekli\s*analiz\s*et)\s*$""")
     )
 
+    private val newsPatterns = listOf(
+        Regex("""(?i)\b(son\s*xeberler|xeberleri\s*oxu|xeberler|xeber|yeni\s*xeberler|dunyada\s*ne\s*var|olkedə\s*ne\s*var|xeber\s*basliqlari)\b"""),
+        Regex("""(?i)^\s*(xeberler|son\s*xeberler|xeberleri\s*goster|news)\s*$""")
+    )
+
+    private val spotifyTrackPatterns = listOf(
+        Regex("""(?i)\b(spotify|spotifay)(?:-da|da)?\s+(.+?)\s+(?:cal|oynat|oxut|baslat)\b"""),
+        Regex("""(?i)\b(spotify|spotifay)(?:-da|da)?\s+(?:cal|oynat)\s+(.+)\b""")
+    )
+
+    private val spotifyCurrentPatterns = listOf(
+        Regex("""(?i)\b(hansi\s*mahni\s*calinir|ne\s*calir|calan\s*mahni|spotify\s*mahni|currently\s*playing)\b"""),
+        Regex("""(?i)^\s*(hansi\s*mahni|ne\s*oxuyur|ne\s*calir)\s*$""")
+    )
+
+    private val smartHomeLightPatterns = listOf(
+        Regex("""(?i)\b(isiq\w*|isig\w*|lampa\w*)\s*(yandir\w*|ac\w*|sondur\w*|bagla\w*|parlaq\w*|coxalt\w*|azalt\w*)\b"""),
+        Regex("""(?i)\b(qonaq|yataq|metbex|hamam|ofis|koridor)\w*\s*(otag\w*|otaq\w*)?\s*(isig\w*|isiq\w*|lampa\w*)\s*(yandir\w*|ac\w*|sondur\w*|bagla\w*)\b""")
+    )
+
+    private val smartHomeClimatePatterns = listOf(
+        Regex("""(?i)\b(kondisioner\w*|istilik\w*|kombi\w*|klimat\w*)\s*(yandir\w*|ac\w*|ise\s*sal\w*|sondur\w*|bagla\w*|tenzimle\w*|\d+\s*derece\w*)\b"""),
+        Regex("""(?i)\b(\d+)\s*(derece\w*)\s*(et\w*|qoy\w*|ayarlandir\w*|tenzimle\w*)\b""")
+    )
+
+    private val smartHomeLockPatterns = listOf(
+        Regex("""(?i)\b(qapi\w*|kilid\w*)\s*(bagla\w*|kilidle\w*|ac\w*|unlock\w*|lock\w*)\b"""),
+        Regex("""(?i)^\s*(qapi\w*\s*kilidle\w*|qapi\w*\s*ac\w*|kilid\w*\s*ac\w*)\s*$""")
+    )
+
+    private val smartHomeScenePatterns = listOf(
+        Regex("""(?i)\b(film|kino|yataq|yuxu|romantik|sabah|axsam|gece)\s*(rejim\w*|senari\w*|ssenari\w*|mod\w*)\s*(qur\w*|ac\w*|aktivlesdir\w*|ise\s*sal\w*)\b""")
+    )
+
+
+
     private val openAppPattern = Regex("""(?i)^\s*(.+?)\s+(ac|baslat|ise\s*sal|launch|open)\s*$""")
 
     // Words that disqualify a token sequence from being a bare app name.
@@ -279,7 +315,11 @@ class DeterministicIntentMatcher(
         }
 
         // 1. TORCH
-        if (torchPatterns.any { it.containsMatchIn(normalized) }) {
+        if (torchPatterns.any { it.containsMatchIn(normalized) } &&
+            !normalized.contains("otag") && !normalized.contains("qonaq") &&
+            !normalized.contains("yataq") && !normalized.contains("metbex") &&
+            !normalized.contains("hamam") && !normalized.contains("ofis") && !normalized.contains("koridor")
+        ) {
             val state = if (normalized.contains("sondur") || normalized.contains("bagla") || normalized.contains("kes")) "OFF" else "ON"
             return StructuredIntent(
                 intentId = "TORCH",
@@ -690,11 +730,91 @@ class DeterministicIntentMatcher(
             return StructuredIntent("ANALYZE_PHOTO", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("prompt" to rawQuery), isDeterministic = true)
         }
 
+        // 19f. NEWS
+        if (newsPatterns.any { it.containsMatchIn(normalized) }) {
+            return StructuredIntent("GET_NEWS", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("count" to "5", "lang" to "az"), isDeterministic = true)
+        }
+
+        // 19g. SPOTIFY
+        if (spotifyCurrentPatterns.any { it.containsMatchIn(normalized) }) {
+            return StructuredIntent("SPOTIFY_CURRENT_TRACK", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, isDeterministic = true)
+        }
+        for (pattern in spotifyTrackPatterns) {
+            val match = pattern.find(normalized)
+            if (match != null && match.groupValues.size >= 3) {
+                val query = match.groupValues[2].trim()
+                val originalQuery = extractOriginalQuery(rawQuery, "spotify", query)
+                return StructuredIntent(
+                    intentId = "SPOTIFY_PLAY",
+                    rawQuery = rawQuery,
+                    normalizedQuery = normalized,
+                    confidence = IntentConfidence.EXACT_DETERMINISTIC,
+                    arguments = mapOf("query" to originalQuery),
+                    isDeterministic = true
+                )
+            }
+        }
+
+        // 19h. SMART HOME
+        if (smartHomeScenePatterns.any { it.containsMatchIn(normalized) }) {
+            val scene = when {
+                normalized.contains("film") || normalized.contains("kino") -> "film"
+                normalized.contains("yataq") || normalized.contains("yuxu") -> "yataq"
+                normalized.contains("romantik") -> "romantik"
+                normalized.contains("sabah") -> "sabah"
+                normalized.contains("axsam") -> "axsam"
+                normalized.contains("gece") -> "gece"
+                else -> "normal"
+            }
+            return StructuredIntent("SMART_HOME_SCENE", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("scene" to scene), isDeterministic = true)
+        }
+
+        if (smartHomeLockPatterns.any { it.containsMatchIn(normalized) }) {
+            val action = if (normalized.contains("ac") || normalized.contains("unlock")) "unlock" else "lock"
+            return StructuredIntent("SMART_HOME_LOCK", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("action" to action), isDeterministic = true)
+        }
+
+        if (smartHomeClimatePatterns.any { it.containsMatchIn(normalized) }) {
+            val tempMatch = Regex("""\b(\d+)\s*derece\b""").find(normalized)
+            val temp = tempMatch?.groupValues?.get(1) ?: "22"
+            val action = when {
+                normalized.contains("sondur") || normalized.contains("bagla") -> "off"
+                tempMatch != null -> "temp"
+                else -> "on"
+            }
+            val room = when {
+                normalized.contains("qonaq") -> "qonaq"
+                normalized.contains("yataq") -> "yataq"
+                normalized.contains("metbex") -> "metbex"
+                else -> ""
+            }
+            return StructuredIntent("SMART_HOME_CLIMATE", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("action" to action, "temperature" to temp, "room" to room), isDeterministic = true)
+        }
+
+        if (smartHomeLightPatterns.any { it.containsMatchIn(normalized) }) {
+            val action = when {
+                normalized.contains("sondur") || normalized.contains("bagla") -> "off"
+                normalized.contains("yandir") || normalized.contains("ac") -> "on"
+                else -> "toggle"
+            }
+            val room = when {
+                normalized.contains("qonaq") -> "qonaq"
+                normalized.contains("yataq") -> "yataq"
+                normalized.contains("metbex") -> "metbex"
+                normalized.contains("hamam") -> "hamam"
+                normalized.contains("ofis") -> "ofis"
+                normalized.contains("koridor") -> "koridor"
+                else -> ""
+            }
+            return StructuredIntent("SMART_HOME_LIGHT", rawQuery, normalized, IntentConfidence.EXACT_DETERMINISTIC, mapOf("action" to action, "room" to room), isDeterministic = true)
+        }
+
+
         // 20. OPEN_APP ("youtube ac", "whatsapp baslat", "telegrami ac", etc.)
         val appMatch = openAppPattern.find(normalized)
         if (appMatch != null) {
             val rawAppName = appMatch.groupValues[1].trim()
-            val blacklisted = listOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "kontakt", "teqvim", "play store", "bildiris", "wifi", "vayfay", "bluetooth", "blutuz", "parametr", "mahni", "musiqi")
+            val blacklisted = listOf("fener", "tenzimleme", "kamera", "video", "sms", "mesaj", "brauzer", "xerite", "kontakt", "teqvim", "play store", "bildiris", "wifi", "vayfay", "bluetooth", "blutuz", "parametr", "mahni", "musiqi", "rejim", "rejimi", "ssenari", "modu")
             // Reject if the "app name" contains query-polluters (song names, search terms, etc.)
             val containsPolluter = appNamePolluters.any { rawAppName.contains(it) }
             val tokenCount = rawAppName.split(" ").size

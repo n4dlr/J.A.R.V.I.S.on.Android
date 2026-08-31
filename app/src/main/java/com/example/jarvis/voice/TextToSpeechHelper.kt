@@ -3,16 +3,26 @@ package com.example.jarvis.voice
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.Locale
 
-class TextToSpeechHelper(private val context: Context) : TextToSpeech.OnInitListener {
+class TextToSpeechHelper(
+    private val context: Context,
+    private val neuralManager: NeuralTtsManager = NeuralTtsManager(context)
+) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
     var isEnabled: Boolean = false
+    var isNeuralTtsPreferred: Boolean = true
+
+    val neuralEngine = NeuralTtsEngine(context, neuralManager)
 
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
@@ -57,13 +67,31 @@ class TextToSpeechHelper(private val context: Context) : TextToSpeech.OnInitList
 
     fun speak(text: String, force: Boolean = false) {
         if (!force && !isEnabled) return
-        if (!isInitialized || text.isBlank()) return
+        if (text.isBlank()) return
+
         stop()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "JARVIS_UTTERANCE_${System.currentTimeMillis()}")
+
+        // 1. If custom Neural Voice is ready and preferred, use Neural Synthesizer
+        if (isNeuralTtsPreferred && neuralEngine.isReady()) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                neuralEngine.synthesizeAndPlay(
+                    text = text,
+                    onStart = { _isSpeaking.value = true },
+                    onDone = { _isSpeaking.value = false }
+                )
+            }
+            return
+        }
+
+        // 2. Standard Android TTS Fallback
+        if (isInitialized) {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "JARVIS_UTTERANCE_${System.currentTimeMillis()}")
+        }
     }
 
     fun stop() {
         try {
+            neuralEngine.stop()
             tts?.stop()
         } catch (_: Exception) {}
         _isSpeaking.value = false
@@ -71,6 +99,7 @@ class TextToSpeechHelper(private val context: Context) : TextToSpeech.OnInitList
 
     fun shutdown() {
         try {
+            neuralEngine.stop()
             tts?.stop()
             tts?.shutdown()
             tts = null

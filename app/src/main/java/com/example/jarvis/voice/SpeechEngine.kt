@@ -138,9 +138,12 @@ class AndroidSpeechRecognizerProvider(
 }
 
 class SpeechEngine(
-    private val context: Context
+    private val context: Context,
+    private val voskModelManager: VoskModelManager? = null
 ) {
-    private val defaultProvider = AndroidSpeechRecognizerProvider(context)
+    private val androidProvider = AndroidSpeechRecognizerProvider(context)
+    private val voskProvider: VoskOfflineSpeechProvider? =
+        voskModelManager?.let { VoskOfflineSpeechProvider(context, it) }
 
     private val _recognitionState = MutableStateFlow(SpeechRecognitionState.IDLE)
     val recognitionState: StateFlow<SpeechRecognitionState> = _recognitionState.asStateFlow()
@@ -154,14 +157,56 @@ class SpeechEngine(
     private val _currentLocale = MutableStateFlow("az-AZ")
     val currentLocale: StateFlow<String> = _currentLocale.asStateFlow()
 
+    private val _activeProviderName = MutableStateFlow("Android STT")
+    val activeProviderName: StateFlow<String> = _activeProviderName.asStateFlow()
+
     val isListening: Boolean get() = _recognitionState.value == SpeechRecognitionState.LISTENING
 
     fun setLocale(localeTag: String) {
         _currentLocale.value = localeTag
     }
 
+    /**
+     * Selects the best available STT provider:
+     *  1. Android System STT — when internet is available (highest accuracy)
+     *  2. Vosk Offline — when internet is not available and model is ready
+     *  3. Android System STT — final fallback (will show ERROR_NETWORK if offline)
+     */
+    private fun selectProvider(): SpeechProvider {
+        val hasInternet = isInternetAvailable()
+        val voskReady = voskProvider?.isAvailable() == true
+
+        return when {
+            hasInternet -> {
+                _activeProviderName.value = "Android STT (Online)"
+                androidProvider
+            }
+            voskReady -> {
+                _activeProviderName.value = "Vosk Offline (az-AZ)"
+                voskProvider!!
+            }
+            else -> {
+                _activeProviderName.value = "Android STT (Fallback)"
+                androidProvider
+            }
+        }
+    }
+
+    private fun isInternetAvailable(): Boolean {
+        return try {
+            val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
+                    as android.net.ConnectivityManager
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } catch (_: Exception) { true }
+    }
+
     fun startListening(onFinalResult: (String) -> Unit) {
-        if (!defaultProvider.isAvailable()) {
+        val provider = selectProvider()
+
+        if (!provider.isAvailable() && provider == androidProvider) {
             _errorMessage.value = "Bu cihazda nitqin tanınması xidməti tapılmadı."
             _recognitionState.value = SpeechRecognitionState.ERROR
             return
@@ -172,7 +217,7 @@ class SpeechEngine(
         _partialTranscript.value = ""
         _errorMessage.value = null
 
-        defaultProvider.startListening(
+        provider.startListening(
             locale = _currentLocale.value,
             onPartial = { partial ->
                 _partialTranscript.value = partial
@@ -185,21 +230,42 @@ class SpeechEngine(
                 onFinalResult(finalResult)
             },
             onError = { error ->
-                _recognitionState.value = SpeechRecognitionState.ERROR
-                _errorMessage.value = error
-                _partialTranscript.value = ""
-                cancel()
+                // If online STT fails with a network error, try Vosk as fallback
+                if (error.contains("Şəbəkə") && voskProvider?.isAvailable() == true) {
+                    _activeProviderName.value = "Vosk Offline (az-AZ) [Fallback]"
+                    voskProvider.startListening(
+                        locale = _currentLocale.value,
+                        onPartial = { p -> _partialTranscript.value = p },
+                        onResult = { r ->
+                            _recognitionState.value = SpeechRecognitionState.IDLE
+                            _partialTranscript.value = ""
+                            onFinalResult(r)
+                        },
+                        onError = { e ->
+                            _recognitionState.value = SpeechRecognitionState.ERROR
+                            _errorMessage.value = e
+                            cancel()
+                        }
+                    )
+                } else {
+                    _recognitionState.value = SpeechRecognitionState.ERROR
+                    _errorMessage.value = error
+                    _partialTranscript.value = ""
+                    cancel()
+                }
             }
         )
     }
 
     fun stopListening() {
-        defaultProvider.stopListening()
+        androidProvider.stopListening()
+        voskProvider?.stopListening()
         _recognitionState.value = SpeechRecognitionState.IDLE
     }
 
     fun cancel() {
-        defaultProvider.cancel()
+        androidProvider.cancel()
+        voskProvider?.cancel()
         _recognitionState.value = SpeechRecognitionState.IDLE
         _partialTranscript.value = ""
     }

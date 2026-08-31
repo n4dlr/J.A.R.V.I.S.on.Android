@@ -29,13 +29,36 @@ data class JarvisUiState(
     val performanceMetrics: com.example.jarvis.core.PerformanceMetrics? = null,
     val confirmationProfile: com.example.jarvis.security.ConfirmationProfile = com.example.jarvis.security.ConfirmationProfile.STANDARD,
     val recognizedSpeechPreview: String = "",
-    val executionStage: String? = null, // "UNDERSTANDING", "PLANNING", "EXECUTING", "VERIFYING", etc.
+    val executionStage: String? = null,
     val diagnosticsTrace: DiagnosticsTrace? = null,
     val activeLanguage: String = "az-AZ",
     val isWakeWordEnabled: Boolean = false,
     val isShakeToWakeEnabled: Boolean = false,
     val isNotificationReadoutEnabled: Boolean = false,
     val isModelDownloaded: Boolean = false,
-    val modelDownloadProgress: Int? = null, // null when idle, 0..100 when downloading
-    val modelDownloadError: String? = null
+    val modelDownloadProgress: Int? = null,
+    val modelDownloadError: String? = null,
+    // Phase 6 — Continuous Voice Session
+    val isContinuousSessionActive: Boolean = false,
+    // Phase 6 — Morning Briefing
+    val isMorningBriefingEnabled: Boolean = false,
+    val briefingHour: Int = 8,
+    // Phase 6 — Vosk Offline STT
+    val isVoskModelReady: Boolean = false,
+    val voskDownloadProgress: Int? = null,
+    val activeSttProvider: String = "Android STT",
+    // Phase 6 — Spotify
+    val isSpotifyAuthenticated: Boolean = false,
+    val isSpotifyConfigured: Boolean = false,
+    // Phase 6 — Smart Home / Home Assistant
+    val isHomeAssistantConfigured: Boolean = false,
+    val homeAssistantServerUrl: String = "",
+    // Phase 7 — Local Offline Vision SLM
+    val isLocalVisionReady: Boolean = false,
+    val localVisionDownloadProgress: Int? = null,
+    // Phase 7 — Custom Azerbaijani Neural Voice (Piper/Sherpa)
+    val isNeuralTtsReady: Boolean = false,
+    val neuralTtsDownloadProgress: Int? = null,
+    val activeNeuralVoice: String = "JARVIS Kişi Səsi (Studiya)"
 )
+
